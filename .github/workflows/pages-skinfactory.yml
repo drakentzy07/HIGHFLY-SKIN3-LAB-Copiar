@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: drakentzy07/cobalt-hollow-lab
-          ref: 8809b30109a1585195e58aec24518eccf114f9c4
+          ref: 34e9308e42f0cb9945afd941ef70b59fc573be6c
           path: pinned-source
           sparse-checkout: |
             character-truth/integration-modules
@@ -34,11 +34,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C pinned-source rev-parse HEAD)" = "8809b30109a1585195e58aec24518eccf114f9c4"
+          test "$(git -C pinned-source rev-parse HEAD)" = "34e9308e42f0cb9945afd941ef70b59fc573be6c"
           mkdir -p character-truth/integration-modules character-truth/generated
-          for file in factory-v4.html paint-recipe-v3.mjs native-molder-v3.mjs factory-recipe-v4.mjs package-factory-v4.mjs; do
+          for file in paint-recipe-v3.mjs native-molder-v3.mjs factory-recipe-v4.mjs package-factory-v4.mjs; do
             cp "pinned-source/character-truth/integration-modules/$file" "character-truth/integration-modules/$file"
           done
+          cp pinned-source/character-truth/integration-modules/factory-v4-camera-stable.html character-truth/integration-modules/factory-v4.html
           ! find character-truth -iname '*.glb' | grep -q .
           echo "HIGHFLY_SOURCE_PIN_OK=1 PRODUCTION_GAME_NOT_CHECKED_OUT=1"
       - name: Validate and build frozen original character compositor
