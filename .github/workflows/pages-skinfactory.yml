@@ -1,0 +1,99 @@
+name: HIGHFLY SKIN FACTORY V4 - Independent Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout the separate Skin Factory Pages repository
+        uses: actions/checkout@v4
+      - name: Read-only checkout of approved GREEN Skin Factory V4 source
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 8809b30109a1585195e58aec24518eccf114f9c4
+          path: pinned-source
+          sparse-checkout: |
+            character-truth/integration-modules
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser dependencies in independent repository
+        run: npm install --no-save --package-lock=false three@0.180.0 meshoptimizer@0.23.0 esbuild@0.25.12
+      - name: Copy only verified additive V4 files; never old Skin Lab source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-source rev-parse HEAD)" = "8809b30109a1585195e58aec24518eccf114f9c4"
+          mkdir -p character-truth/integration-modules character-truth/generated
+          for file in factory-v4.html paint-recipe-v3.mjs native-molder-v3.mjs factory-recipe-v4.mjs package-factory-v4.mjs; do
+            cp "pinned-source/character-truth/integration-modules/$file" "character-truth/integration-modules/$file"
+          done
+          ! find character-truth -iname '*.glb' | grep -q .
+          echo "HIGHFLY_SOURCE_PIN_OK=1 PRODUCTION_GAME_NOT_CHECKED_OUT=1"
+      - name: Validate and build frozen original character compositor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,pathlib,urllib.request,time
+          revision='9b57e49c9676d75962700f828cc00a50a9a988b5'
+          pins={'modular.ts':'d2ad732114b01a0aa9de5a882e0a6980d54225fb',
+                'underhair.generated.ts':'630408c0ffbffb61d06e1a398f28b0d89f820dfe'}
+          for name,pin in pins.items():
+            url=f'https://raw.githubusercontent.com/levy-street/world-of-claudecraft/{revision}/src/render/characters/{name}'
+            for attempt in range(3):
+              try:
+                data=urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'HIGHFLY-SKINFACTORY-PAGES'}),timeout=60).read()
+                break
+              except Exception:
+                if attempt==2:raise
+                time.sleep(2)
+            digest=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+            if digest!=pin:raise SystemExit('UPSTREAM_CONTENT_MISMATCH '+name)
+            pathlib.Path('character-truth/generated',name).write_bytes(data)
+            print('FROZEN_MODEL_SOURCE_VERIFIED',name)
+          PY
+          npx esbuild character-truth/generated/modular.ts --bundle --format=esm --platform=browser --outfile=character-truth/generated/modular-runtime.mjs
+      - name: Build static 3D editor, model assets kept at pinned original origin
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check character-truth/integration-modules/factory-recipe-v4.mjs
+          node --check character-truth/integration-modules/native-molder-v3.mjs
+          node character-truth/integration-modules/package-factory-v4.mjs
+          test -s highfly-skinfactory-v4-preview/index.html
+          test -s highfly-skinfactory-v4-preview/NOTICE.txt
+          ! find highfly-skinfactory-v4-preview -iname '*.glb' | grep -q .
+          echo "SKIN3_PAGES_BUILD_GREEN=1 ORIGINAL_GLBS_BUNDLED=0 MAIN_GAME_UNCHANGED=1"
+      - name: Store inspectable static build
+        uses: actions/upload-artifact@v4
+        with:
+          name: highfly-skinfactory-v4-static-build
+          path: highfly-skinfactory-v4-preview/
+          retention-days: 30
+      - name: Upload public-site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: highfly-skinfactory-v4-preview/
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - name: Check Pages setup on independent repository
+        uses: actions/configure-pages@v5
+      - name: Publish ONLY HIGHFLY-SKIN3-LAB-Copiar
+        id: deployment
+        uses: actions/deploy-pages@v4
