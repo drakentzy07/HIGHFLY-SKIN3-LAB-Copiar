@@ -1,4 +1,4 @@
-name: HIGHFLY SKIN STUDIO V10 V12 V13.1 V14 + V14.1 - Independent Pages
+name: HIGHFLY SKIN STUDIO V10–V17 - Independent Pages
 on:
   push:
     branches: [main]
@@ -438,6 +438,100 @@ jobs:
           grep -F 'Studio V14.1' highfly-skinfactory-v10-preview/v14-1/index.html
           echo HIGHFLY_V14_1_PUBLIC_CANDIDATE_AND_OLD_4_VERSIONS_SAFE_GREEN=1
 
+      - name: Pin verified DREAM V17 full integration source READ ONLY - preserve V10 through V14.1
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 243ef20db418649cb4bae139a5bb200cb9a53dc6
+          path: pinned-dream-v17-green
+          sparse-checkout: |
+            character-truth/integration-modules
+
+      - name: Stage ONLY V15 V16 V17 new browser modules and frozen tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-dream-v17-green rev-parse HEAD)" = '243ef20db418649cb4bae139a5bb200cb9a53dc6'
+          for name in dream-recipe-v15.mjs dream-v15-ui.mjs dream-v15.test.mjs package-dream-v15.mjs \
+            dream-image-v16.mjs dream-v16-ui.mjs dream-v16.test.mjs package-dream-v16.mjs \
+            dream-project-v17.mjs dream-studio-v17.mjs dream-v17.test.mjs \
+            dream-v17-browser-gate.cjs package-dream-v17.mjs; do
+            cp "pinned-dream-v17-green/character-truth/integration-modules/$name" \
+              "character-truth/integration-modules/$name"
+          done
+          test -s highfly-skinfactory-v10-preview/index.html
+          test -s highfly-skinfactory-v10-preview/v12/index.html
+          test -s highfly-skinfactory-v10-preview/v13-1/index.html
+          test -s highfly-skinfactory-v10-preview/v14/index.html
+          test -s highfly-skinfactory-v10-preview/v14-1/index.html
+          echo HIGHFLY_DREAM_V15_V16_V17_REUSE_PREVIOUS_ARTIFACTS_READY=1
+
+      - name: Assemble V15 V16 V17 isolated previews and prove actual weighted GLB exports
+        shell: bash
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,hashlib,json
+          root=pathlib.Path('highfly-skinfactory-v10-preview')
+          checks=['index.html','v12/index.html','v13-1/index.html','v14/index.html','v14-1/index.html']
+          d={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in checks}
+          pathlib.Path('/tmp/highfly-legacy-shas.json').write_text(json.dumps(d))
+          print('HIGHFLY_PREVIOUS_PAGES_FIVE_ROOTS_FROZEN',len(d))
+          PY
+          mkdir -p character-truth/v14-1-approved-package
+          cp -a highfly-skinfactory-v14-1-preview/. character-truth/v14-1-approved-package/
+          node character-truth/integration-modules/package-dream-v15.mjs
+          node character-truth/integration-modules/dream-v15.test.mjs
+          mkdir -p character-truth/v15-green-package
+          cp -a highfly-dream-v15-preview/. character-truth/v15-green-package/
+          node character-truth/integration-modules/package-dream-v16.mjs
+          node character-truth/integration-modules/dream-v16.test.mjs
+          mkdir -p character-truth/v16-green-package
+          cp -a highfly-dream-v16-preview/. character-truth/v16-green-package/
+          node character-truth/integration-modules/package-dream-v17.mjs
+          node character-truth/integration-modules/dream-v17.test.mjs
+          mkdir -p highfly-skinfactory-v10-preview/v15 highfly-skinfactory-v10-preview/v16 highfly-skinfactory-v10-preview/v17
+          cp -a highfly-dream-v15-preview/. highfly-skinfactory-v10-preview/v15/
+          cp -a highfly-dream-v16-preview/. highfly-skinfactory-v10-preview/v16/
+          cp -a highfly-dream-v17-preview/. highfly-skinfactory-v10-preview/v17/
+          python3 - <<'PY'
+          import pathlib,hashlib,json
+          root=pathlib.Path('highfly-skinfactory-v10-preview')
+          before=json.loads(pathlib.Path('/tmp/highfly-legacy-shas.json').read_text())
+          after={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in before}
+          assert before==after, 'PREVIOUS_LIVE_PAGES_REWRITTEN'
+          for v in ('15','16','17'):
+           assert (root/('v'+v)/'index.html').stat().st_size>50000
+           assert (root/('v'+v)/'assets/HIGHFLY-NIGHTFALL-rigged-body.glb').stat().st_size>100000
+           assert not (root/('v'+v)/'assets/warrior_modular.glb').exists()
+          print('HIGHFLY_V17_ALL_EIGHT_PAGES_AND_PRIOR_SHA256_UNCHANGED_GREEN=1')
+          PY
+
+      - name: Browser-test the exact V17 candidate destined for independent Pages
+        shell: bash
+        timeout-minutes: 9
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4187 --bind 127.0.0.1 \
+            --directory highfly-skinfactory-v10-preview/v17 >/tmp/hf-v17-pages-qa.log 2>&1 &
+          sleep 2
+          node character-truth/integration-modules/dream-v17-browser-gate.cjs
+          grep -F '"green": true' character-truth/v17-evidence/browser-proof.json
+          echo HIGHFLY_DREAM_V17_PAGES_REAL_HUNTER_MOBILE_BROWSER_GREEN=1
+
+      - name: Archive V15 V16 V17 authenticated source & real skin safety checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-DREAM-V15-V16-V17-INDEPENDENT-PAGES-QA
+          path: |
+            character-truth/v15-evidence/
+            character-truth/v16-evidence/
+            character-truth/v17-evidence/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Preserve real fitting measurements and front/profile/back/sex comparison shots
         if: always()
         uses: actions/upload-artifact@v4
@@ -473,7 +567,7 @@ jobs:
       - name: Archive standalone deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: HIGHFLY-V10-V12-V13-1-V14-AND-V14-1-INDEPENDENT-PAGES
+          name: HIGHFLY-V10-THROUGH-V17-INDEPENDENT-PAGES
           path: highfly-skinfactory-v10-preview/
           retention-days: 30
 
@@ -583,4 +677,33 @@ jobs:
           PY
           echo HIGHFLY_V14_1_ALL_FIVE_LIVE_PAGES_AND_ORIGINAL_RIG_GREEN=1
           echo "V14_1_PUBLIC_URL=${BASE}v14-1/"
+
+          # New isolated previews are additive. Historical roots have already passed.
+          for ver in 15 16 17; do
+            for attempt in {1..18}; do
+              if curl -fsSL --max-time 25 "${BASE}v${ver}/?dream=${ver}" \
+                -o "/tmp/hf-dream-live-${ver}.html" &&
+                grep -F "dream-v${ver}-ui.mjs" "/tmp/hf-dream-live-${ver}.html" >/dev/null 2>&1; then
+                break
+              fi
+              # V17 has a unified cockpit script, not a dream-v17-ui name.
+              if [ "$ver" = 17 ] &&
+                grep -F "dream-studio-v17.mjs" "/tmp/hf-dream-live-${ver}.html" >/dev/null 2>&1; then
+                break
+              fi
+              sleep 5
+            done
+            test -s "/tmp/hf-dream-live-${ver}.html"
+            for file in assets/HIGHFLY-NIGHTFALL-rigged-body.glb dream-recipe-v15.mjs; do
+              curl -fsSL --retry 3 --max-time 35 -o /dev/null "${BASE}v${ver}/${file}"
+            done
+          done
+          grep -F 'dream-v15-ui.mjs' /tmp/hf-dream-live-15.html >/dev/null
+          grep -F 'dream-v16-ui.mjs' /tmp/hf-dream-live-16.html >/dev/null
+          grep -F 'dream-studio-v17.mjs' /tmp/hf-dream-live-17.html >/dev/null
+          curl -fsSL --retry 3 --max-time 35 -o /dev/null "${BASE}v17/dream-project-v17.mjs"
+          curl -fsSL --retry 3 --max-time 35 -o /dev/null "${BASE}v17/assets/HIGHFLY-KAGE-ONI-head.glb"
+          echo HIGHFLY_DREAM_V17_LIVE_EIGHT_ISOLATED_PREVIEWS_GREEN=1
+          echo "DREAM_V17_PUBLIC_URL=${BASE}v17/"
+
 
