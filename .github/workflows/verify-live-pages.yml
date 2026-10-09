@@ -1,8 +1,8 @@
-name: HIGHFLY SKIN STUDIO V10 ROOT + V12 CANDIDATE - Verify Live Pages
+name: HIGHFLY SKIN STUDIO V10 V12 and V13.1 - Live Pages Verification
 on:
   workflow_run:
     workflows:
-      - HIGHFLY SKIN STUDIO V10 + V12 Candidate - Independent Pages
+      - HIGHFLY SKIN STUDIO V10 V12 + V13.1 - Independent Pages
     types: [completed]
 permissions:
   contents: read
@@ -83,4 +83,39 @@ jobs:
           print('HIGHFLY_PUBLIC_V10_ROOT_AND_V12_PREMIUM_CANDIDATE_DISTINCT_GLBS_GREEN=1')
           PY
           echo HIGHFLY_V12_PUBLIC_NESTED_CANDIDATE_URL_GREEN=1
+          # Public V13.1 must be a distinct candidate, preserving both existing URLs.
+          for attempt in {1..18}; do
+            if curl -fsSL --max-time 25 "${BASE}v13-1/?candidate=1" \
+              -o /tmp/highfly-v13-1-live.html &&
+              grep -F 'Studio V13.1' /tmp/highfly-v13-1-live.html >/dev/null &&
+              grep -F 'premiumBakedGlb' /tmp/highfly-v13-1-live.html >/dev/null; then
+              break
+            fi
+            sleep 5
+          done
+          test -s /tmp/highfly-v13-1-live.html
+          grep -F 'Studio V13.1' /tmp/highfly-v13-1-live.html
+          grep -F 'premiumBakedGlb' /tmp/highfly-v13-1-live.html
+          for file in \
+            bake-nightfall-v13-1.mjs premium-paint-v13.mjs native-body-v13-1.mjs \
+            generated/modular-runtime.mjs vendor/three/build/three.module.js \
+            assets/HIGHFLY-NIGHTFALL-rigged-body.glb \
+            assets/HIGHFLY-KAGE-ONI-head.glb NOTICE.txt; do
+             echo LIVE_V13_1_ASSET "$file"
+             curl -fsSL --retry 3 --max-time 45 -o /dev/null "${BASE}v13-1/${file}"
+          done
+          curl -fsSL --retry 3 --max-time 50 -o /tmp/nightfall-v13-1-live.glb \
+            "${BASE}v13-1/assets/HIGHFLY-NIGHTFALL-rigged-body.glb"
+          python3 - <<'PY'
+          from pathlib import Path
+          v12=Path('/tmp/nightfall-v12-live.glb').read_bytes()
+          v131=Path('/tmp/nightfall-v13-1-live.glb').read_bytes()
+          assert v12[:4]==v131[:4]==b'glTF'
+          assert len(v131)>900_000
+          # The V13.1 painter operates on the same original Nightfall geometry,
+          # so the BASE GLB must stay byte-identical to V12 before the user paints.
+          assert v12==v131, 'Source original Nightfall V12 forge must not change'
+          print('HIGHFLY_V13_1_LIVE_EDITOR_PRESERVES_V12_GLB_BINARY_GREEN=1')
+          PY
+          echo HIGHFLY_V13_1_PBR_BAKED_GLB_PAGES_PUBLIC_PREVIEW_GREEN=1
           echo "LIVE_PAGES_URL=$BASE"
