@@ -1,4 +1,4 @@
-name: HIGHFLY SKIN STUDIO V10 + V12 Candidate - Independent Pages
+name: HIGHFLY SKIN STUDIO V10 V12 + V13.1 - Independent Pages
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - name: Checkout ONLY independent Skin Studio Pages repository
         uses: actions/checkout@v4
@@ -261,6 +261,68 @@ jobs:
           grep -F 'Studio V12' highfly-skinfactory-v10-preview/v12/index.html
           echo HIGHFLY_V12_NESTED_PUBLIC_CANDIDATE_AND_ROOT_V10_BOTH_GREEN=1
 
+      - name: Pin the exact V13.1 true baked GLB editor GREEN source (READ ONLY)
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 2056719c5428fe050be8aa1cfbbc7cf4b816429e
+          path: pinned-v13-1-green
+          sparse-checkout: |
+            character-truth/integration-modules
+
+      - name: Stage only the verified V13.1 real PBR exporter without altering V10/V12 sites
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-v13-1-green rev-parse HEAD)" = 2056719c5428fe050be8aa1cfbbc7cf4b816429e
+          for file in \
+            studio-v13-1.html native-body-v13-1.mjs premium-paint-v13.mjs \
+            bake-nightfall-v13-1.mjs bake-nightfall-v13-1.test.mjs \
+            package-studio-v13-1.mjs studio-v13-1-bake-gate.cjs; do
+            cp "pinned-v13-1-green/character-truth/integration-modules/$file" \
+               "character-truth/integration-modules/$file"
+          done
+          test -s highfly-skinfactory-v10-preview/index.html
+          test -s highfly-skinfactory-v10-preview/v12/index.html
+          grep -F 'Studio V10' highfly-skinfactory-v10-preview/index.html
+          grep -F 'Studio V12' highfly-skinfactory-v10-preview/v12/index.html
+          echo HIGHFLY_V13_1_V10_AND_V12_PUBLIC_STABLE_ROOTS_PRESERVED_GREEN=1
+
+      - name: Build V13.1 real PBR baked GLB editor and prove standalone original skinning
+        shell: bash
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          node character-truth/integration-modules/bake-nightfall-v13-1.test.mjs
+          node character-truth/integration-modules/package-studio-v13-1.mjs
+          test -s highfly-skinfactory-v13-1-preview/index.html
+          test -s highfly-skinfactory-v13-1-preview/bake-nightfall-v13-1.mjs
+          test -s highfly-skinfactory-v13-1-preview/premium-paint-v13.mjs
+          test -s highfly-skinfactory-v13-1-preview/native-body-v13-1.mjs
+          grep -F 'Studio V13.1' highfly-skinfactory-v13-1-preview/index.html
+          ! find highfly-skinfactory-v13-1-preview -name warrior_modular.glb | grep -q .
+          python3 -m http.server 4181 --bind 127.0.0.1 \
+            --directory highfly-skinfactory-v13-1-preview >/tmp/highfly-v13-1-pages-candidate.log 2>&1 &
+          sleep 2
+          HF_SITE_PORT=4181 node character-truth/integration-modules/studio-v13-1-bake-gate.cjs
+          test -s character-truth/v13-1-baked-glb-proof/HIGHFLY-Nightfall-V13-1-PINTADA-original-rig.glb
+          grep -F '"green": true' character-truth/v13-1-baked-glb-proof/report.json
+          mkdir -p highfly-skinfactory-v10-preview/v13-1
+          cp -a highfly-skinfactory-v13-1-preview/. highfly-skinfactory-v10-preview/v13-1/
+          grep -F 'Studio V10' highfly-skinfactory-v10-preview/index.html
+          grep -F 'Studio V12' highfly-skinfactory-v10-preview/v12/index.html
+          grep -F 'Studio V13.1' highfly-skinfactory-v10-preview/v13-1/index.html
+          echo HIGHFLY_V13_1_REAL_BAKED_GLB_V10_V12_SAFELY_NESTED_PREVIEW_GREEN=1
+
+      - name: Archive publicly testable V13.1 original-rig GLB download and 3D validation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-V13-1-PAGES-REAL-GLB-EXPORT-KHRONOS-QA
+          path: character-truth/v13-1-baked-glb-proof/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Archive separate V12 candidate screenshots and original model tests
         if: always()
         uses: actions/upload-artifact@v4
@@ -287,7 +349,7 @@ jobs:
       - name: Archive standalone deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: HIGHFLY-V10-ROOT-AND-V12-NESTED-CANDIDATE-WEBSITE
+          name: HIGHFLY-V10-V12-AND-V13-1-PREVIEW-INDEPENDENT-PAGES
           path: highfly-skinfactory-v10-preview/
           retention-days: 30
 
