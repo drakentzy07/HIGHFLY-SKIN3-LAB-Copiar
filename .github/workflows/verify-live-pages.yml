@@ -1,8 +1,8 @@
-name: HIGHFLY SKIN STUDIO V10 - Verify Public GitHub Pages URL
+name: HIGHFLY SKIN STUDIO V10 ROOT + V12 CANDIDATE - Verify Live Pages
 on:
   workflow_run:
     workflows:
-      - HIGHFLY SKIN STUDIO V10 - Independent Pages
+      - HIGHFLY SKIN STUDIO V10 + V12 Candidate - Independent Pages
     types: [completed]
 permissions:
   contents: read
@@ -53,4 +53,34 @@ jobs:
           ! grep -F '"/node_modules' /tmp/highfly-v10-live.html
           ! grep -F "'/character-truth/inputs" /tmp/highfly-v10-live.html
           echo 'HIGHFLY_V10_PUBLIC_PAGES_URL_GREEN=1 GAME_PAGES_UNTOUCHED=1'
+          # Additional public path is a candidate, not a replacement for V10.
+          for attempt in {1..18}; do
+            if curl -fLsS --max-time 25 "${BASE}v12/?candidate=1" -o /tmp/highfly-v12-live.html &&
+              grep -F 'Studio V12' /tmp/highfly-v12-live.html >/dev/null; then
+              break
+            fi
+            sleep 5
+          done
+          test -s /tmp/highfly-v12-live.html
+          grep -F 'Studio V12' /tmp/highfly-v12-live.html
+          grep -F 'bodyForgeLoad' /tmp/highfly-v12-live.html
+          for file in native-body-v12.mjs native-forge-v6.mjs \
+            generated/modular-runtime.mjs vendor/three/build/three.module.js \
+            assets/HIGHFLY-KAGE-ONI-head.glb assets/HIGHFLY-NIGHTFALL-rigged-body.glb \
+            NOTICE.txt; do
+            echo 'LIVE_V12_CANDIDATE_ASSET' "$file"
+            curl -fsSL --retry 3 --max-time 60 -o /dev/null "${BASE}v12/${file}"
+          done
+          curl -fsSL --retry 3 --max-time 60 -o /tmp/nightfall-v12-live.glb \
+            "${BASE}v12/assets/HIGHFLY-NIGHTFALL-rigged-body.glb"
+          python3 - <<'PY'
+          from pathlib import Path
+          v10=Path('/tmp/nightfall-v10-live.glb').read_bytes()
+          v12=Path('/tmp/nightfall-v12-live.glb').read_bytes()
+          assert v10[:4]==b'glTF' and v12[:4]==b'glTF'
+          assert len(v10)>500_000 and len(v12)>900_000,(len(v10),len(v12))
+          assert v10!=v12,'V12 must be new real weighted geometry, not old V10 binary'
+          print('HIGHFLY_PUBLIC_V10_ROOT_AND_V12_PREMIUM_CANDIDATE_DISTINCT_GLBS_GREEN=1')
+          PY
+          echo HIGHFLY_V12_PUBLIC_NESTED_CANDIDATE_URL_GREEN=1
           echo "LIVE_PAGES_URL=$BASE"
