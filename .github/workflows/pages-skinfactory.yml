@@ -1,4 +1,4 @@
-name: HIGHFLY SKIN STUDIO V10 - Independent Pages
+name: HIGHFLY SKIN STUDIO V10 + V12 Candidate - Independent Pages
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - name: Checkout ONLY independent Skin Studio Pages repository
         uses: actions/checkout@v4
@@ -186,6 +186,93 @@ jobs:
           grep -F '"green": true' character-truth/v10-unified-proof/v10-browser-report.json
           echo HIGHFLY_V10_DEPLOYABLE_15_BROWSER_CHECKS_GREEN=1
 
+      - name: Pin isolated V12 candidate read-only — DO NOT MODIFY V10 PUBLIC ROOT
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 67ee8fa0e32db82f9d93a4b00f2694459cca104a
+          path: pinned-v12-candidate
+          sparse-checkout: |
+            character-truth/integration-modules
+
+      - name: Prepare isolated V12 code WITHOUT modifying the already-built V10 website
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-v12-candidate rev-parse HEAD)" = '67ee8fa0e32db82f9d93a4b00f2694459cca104a'
+          for file in \
+            studio-v12.html native-body-v12.mjs native-forge-v6.mjs \
+            nightfall-body-forge-v12.py nightfall-body-gate-v12.cjs \
+            nightfall-body-motion-v12.py studio-v12-premium-gate.cjs \
+            studio-v12-helmet-fit-gate.cjs package-studio-v12.mjs; do
+            cp "pinned-v12-candidate/character-truth/integration-modules/$file" \
+               "character-truth/integration-modules/$file"
+          done
+          test -s highfly-skinfactory-v10-preview/index.html
+          grep -F 'Studio V10' highfly-skinfactory-v10-preview/index.html
+          echo HIGHFLY_V10_PUBLIC_ROOT_STILL_VERIFIED_BEFORE_V12=1
+
+      - name: Build real V12 premium 3D armors in Blender for both genders
+        shell: bash
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          python3 -m py_compile character-truth/integration-modules/nightfall-body-forge-v12.py
+          blender --background --factory-startup --python-exit-code 99 \
+            --python character-truth/integration-modules/nightfall-body-forge-v12.py -- \
+            --native character-truth/v8-proof/native-plain.glb \
+            --out character-truth/v8-proof/HIGHFLY-NIGHTFALL-rigged-body.glb \
+            | tee /tmp/highfly-v12-public-preview-forge.log
+          grep -F 'HIGHFLY_V12_PREMIUM_WEIGHTED_ARMOR_EXPORTED' /tmp/highfly-v12-public-preview-forge.log
+          node character-truth/integration-modules/nightfall-body-gate-v12.cjs
+          blender --background --factory-startup --python-exit-code 99 \
+            --python character-truth/integration-modules/nightfall-body-motion-v12.py -- \
+            character-truth/v8-proof/HIGHFLY-NIGHTFALL-rigged-body.glb \
+            | tee /tmp/highfly-v12-public-preview-motion.log
+          grep -F 'HIGHFLY_V12_ALL_PREMIUM_PARTS_DEFORM_WITH_SOURCE_RIG_GREEN=1' /tmp/highfly-v12-public-preview-motion.log
+          cp character-truth/v8-proof/HIGHFLY-NIGHTFALL-rigged-body.glb \
+            character-truth/integration-modules/assets/HIGHFLY-NIGHTFALL-rigged-body.glb
+          echo HIGHFLY_V12_UNIQUE_PREMIUM_SKINNED_GEOMETRY_REFORGED_GREEN=1
+
+      - name: Build V12 independent nested candidate package — V10 existing root never overwritten
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check character-truth/integration-modules/native-body-v12.mjs
+          node --check character-truth/integration-modules/package-studio-v12.mjs
+          node character-truth/integration-modules/package-studio-v12.mjs
+          test -s highfly-skinfactory-v12-preview/index.html
+          grep -F 'Studio V12' highfly-skinfactory-v12-preview/index.html
+          test -s highfly-skinfactory-v12-preview/native-body-v12.mjs
+          cat >> highfly-skinfactory-v12-preview/NOTICE.txt <<'NOTE'
+          CANDIDATE V12 - /v12/ is an isolated review preview, NOT released premium artwork.
+          The public site root / still serves the previously approved V10.
+          S23 physical, Unity import and clipping art direction still await user QA.
+          NOTE
+          ! find highfly-skinfactory-v12-preview -name warrior_modular.glb | grep -q .
+          python3 -m http.server 4178 --bind 127.0.0.1 \
+            --directory highfly-skinfactory-v12-preview >/tmp/highfly-v12-candidate-browser.log 2>&1 &
+          sleep 2
+          HF_SITE_PORT=4178 node character-truth/integration-modules/studio-v12-premium-gate.cjs
+          HF_SITE_PORT=4178 node character-truth/integration-modules/studio-v12-helmet-fit-gate.cjs
+          mkdir -p highfly-skinfactory-v10-preview/v12
+          cp -a highfly-skinfactory-v12-preview/. highfly-skinfactory-v10-preview/v12/
+          grep -F 'Studio V10' highfly-skinfactory-v10-preview/index.html
+          grep -F 'Studio V12' highfly-skinfactory-v10-preview/v12/index.html
+          echo HIGHFLY_V12_NESTED_PUBLIC_CANDIDATE_AND_ROOT_V10_BOTH_GREEN=1
+
+      - name: Archive separate V12 candidate screenshots and original model tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-V12-INDEPENDENT-PAGES-CANDIDATE-QA
+          path: |
+            character-truth/v12-premium-proof/
+            character-truth/v12-helmet-proof/
+            character-truth/v8-proof/nightfall-v12-skinning-gate.json
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Preserve snapshots and 3D proof separately from hosted site
         if: always()
         uses: actions/upload-artifact@v4
@@ -200,7 +287,7 @@ jobs:
       - name: Archive standalone deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: HIGHFLY-V10-PAGES-WEBSITE
+          name: HIGHFLY-V10-ROOT-AND-V12-NESTED-CANDIDATE-WEBSITE
           path: highfly-skinfactory-v10-preview/
           retention-days: 30
 
