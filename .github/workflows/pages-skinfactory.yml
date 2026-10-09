@@ -1,4 +1,4 @@
-name: HIGHFLY SKIN STUDIO V10–V17 - Independent Pages
+name: HIGHFLY SKIN STUDIO V10–V18 - Independent Pages
 on:
   push:
     branches: [main]
@@ -520,6 +520,72 @@ jobs:
           grep -F '"green": true' character-truth/v17-evidence/browser-proof.json
           echo HIGHFLY_DREAM_V17_PAGES_REAL_HUNTER_MOBILE_BROWSER_GREEN=1
 
+      - name: Pin verified V18 Head Truth GREEN source - only new independent /v18
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 8c7f87363169bf9030bab1008c20f19a2de57cc6
+          path: pinned-supreme-v18-green
+          sparse-checkout: |
+            character-truth/integration-modules
+
+      - name: Build and browser-verify standalone V18 from already GREEN V17 without changing earlier pages
+        shell: bash
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-supreme-v18-green rev-parse HEAD)" = '8c7f87363169bf9030bab1008c20f19a2de57cc6'
+          mkdir -p character-truth/v17-green-package
+          cp -a highfly-dream-v17-preview/. character-truth/v17-green-package/
+          for file in native-forge-v14-1.mjs head-fit-math-v18.mjs head-truth-v18.mjs \
+            package-dream-v18.mjs head-v18.test.mjs head-v18-browser-gate.cjs; do
+            cp "pinned-supreme-v18-green/character-truth/integration-modules/$file" \
+               "character-truth/integration-modules/$file"
+          done
+          python3 - <<'PY'
+          import pathlib,hashlib,json
+          root=pathlib.Path('highfly-skinfactory-v10-preview')
+          pages=['index.html','v12/index.html','v13-1/index.html','v14/index.html',
+                 'v14-1/index.html','v15/index.html','v16/index.html','v17/index.html']
+          old={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in pages}
+          pathlib.Path('/tmp/highfly-pages-v18-old-hashes.json').write_text(json.dumps(old))
+          assert len(old)==8
+          print('HIGHFLY_EIGHT_APPROVED_PAGES_FROZEN_BEFORE_V18=1')
+          PY
+          node --check character-truth/integration-modules/native-forge-v14-1.mjs
+          node --check character-truth/integration-modules/head-truth-v18.mjs
+          node character-truth/integration-modules/package-dream-v18.mjs
+          node character-truth/integration-modules/head-v18.test.mjs
+          python3 -m http.server 4188 --bind 127.0.0.1 \
+            --directory highfly-dream-v18-preview >/tmp/highfly-v18-pages-browser.log 2>&1 &
+          sleep 2
+          node character-truth/integration-modules/head-v18-browser-gate.cjs
+          grep -F '"green": true' character-truth/v18-evidence/browser-proof.json
+          mkdir -p highfly-skinfactory-v10-preview/v18
+          cp -a highfly-dream-v18-preview/. highfly-skinfactory-v10-preview/v18/
+          python3 - <<'PY'
+          import pathlib,hashlib,json
+          root=pathlib.Path('highfly-skinfactory-v10-preview')
+          before=json.loads(pathlib.Path('/tmp/highfly-pages-v18-old-hashes.json').read_text())
+          after={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in before}
+          assert before==after, 'V18_MUTATED_OLD_PAGES'
+          v18=root/'v18'
+          assert 'head-truth-v18.mjs' in (v18/'index.html').read_text()
+          assert (v18/'assets/HIGHFLY-KAGE-ONI-head.glb').stat().st_size>100000
+          assert (v18/'assets/HIGHFLY-NIGHTFALL-rigged-body.glb').stat().st_size>100000
+          assert not (v18/'assets/warrior_modular.glb').exists()
+          print('HIGHFLY_V18_AND_ALL_EIGHT_OLDER_PAGES_BYTE_PRESERVED_GREEN=1')
+          PY
+
+      - name: Preserve V18 original Hunter geometric head and Android-landscape proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-V18-SUPREME-INDEPENDENT-PAGES-ORIGINAL-HEAD-QA
+          path: character-truth/v18-evidence/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Archive V15 V16 V17 authenticated source & real skin safety checks
         if: always()
         uses: actions/upload-artifact@v4
@@ -567,7 +633,7 @@ jobs:
       - name: Archive standalone deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: HIGHFLY-V10-THROUGH-V17-INDEPENDENT-PAGES
+          name: HIGHFLY-V10-THROUGH-V18-INDEPENDENT-PAGES
           path: highfly-skinfactory-v10-preview/
           retention-days: 30
 
@@ -705,5 +771,22 @@ jobs:
           curl -fsSL --retry 3 --max-time 35 -o /dev/null "${BASE}v17/assets/HIGHFLY-KAGE-ONI-head.glb"
           echo HIGHFLY_DREAM_V17_LIVE_EIGHT_ISOLATED_PREVIEWS_GREEN=1
           echo "DREAM_V17_PUBLIC_URL=${BASE}v17/"
+
+          # V18 is an ADDITIVE independent artist QA preview. Previous routes remain unchanged.
+          for attempt in {1..18}; do
+            if curl -fsSL --max-time 25 "${BASE}v18/?headtruth=18" -o /tmp/hf-live-v18.html &&
+               grep -F 'head-truth-v18.mjs' /tmp/hf-live-v18.html >/dev/null; then
+               break
+            fi
+            sleep 5
+          done
+          grep -F 'head-truth-v18.mjs' /tmp/hf-live-v18.html >/dev/null
+          for file in head-fit-math-v18.mjs head-truth-v18.mjs native-forge-v14-1.mjs \
+            assets/HIGHFLY-KAGE-ONI-head.glb assets/HIGHFLY-NIGHTFALL-rigged-body.glb; do
+            curl -fsSL --retry 3 --max-time 35 -o /dev/null "${BASE}v18/${file}"
+          done
+          echo HIGHFLY_V18_AND_EIGHT_PREVIOUS_INDEPENDENT_PAGES_LIVE_GREEN=1
+          echo "SUPREME_V18_PUBLIC_URL=${BASE}v18/"
+
 
 
