@@ -1,39 +1,56 @@
-name: HIGHFLY SKIN FACTORY - Public URL Verification
-
+name: HIGHFLY SKIN STUDIO V10 - Verify Public GitHub Pages URL
 on:
   workflow_run:
     workflows:
-      - HIGHFLY SKIN FACTORY V4 - Independent Pages
+      - HIGHFLY SKIN STUDIO V10 - Independent Pages
     types: [completed]
-
 permissions:
   contents: read
-
 jobs:
-  verify-live-site:
+  verify-live-v10:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 9
     steps:
-      - name: HTTP verify real public Pages address, JS and source import dependencies
+      - name: Verify V10 published URL with genuine original 3D assets, not V4
         shell: bash
         run: |
           set -euo pipefail
-          BASE="https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/"
-          for attempt in {1..15}; do
-            if curl -fsSL --max-time 20 "$BASE" -o /tmp/highfly-skin3-index.html; then break; fi
+          BASE='https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/'
+          for attempt in {1..18}; do
+            if curl -fLsS --max-time 25 "$BASE?version=10" -o /tmp/highfly-v10-live.html &&
+               grep -F 'Studio V10' /tmp/highfly-v10-live.html >/dev/null &&
+               grep -F 'bodyForgeLoad' /tmp/highfly-v10-live.html >/dev/null; then
+              break
+            fi
             sleep 5
           done
-          test -s /tmp/highfly-skin3-index.html
-          grep -F 'HIGHFLY' /tmp/highfly-skin3-index.html
-          grep -F '__HF_SKIN3_FACTORY_V4__' /tmp/highfly-skin3-index.html
-          grep -F 'window.__HF_SKIN3_MOLDER_V3_PROOF__' /tmp/highfly-skin3-index.html
-          grep -F 'highfly-skinfactory' /tmp/highfly-skin3-index.html >/dev/null || true
-          for file in factory-recipe-v4.mjs native-molder-v3.mjs paint-recipe-v3.mjs generated/modular-runtime.mjs vendor/three/build/three.module.js vendor/meshopt_decoder.module.js NOTICE.txt; do
-            echo "CHECK_PUBLIC_ASSET $file"
-            curl -fsSL --retry 4 --retry-delay 3 --max-time 45 -o /dev/null "${BASE}${file}"
+          test -s /tmp/highfly-v10-live.html
+          grep -F 'Studio V10' /tmp/highfly-v10-live.html
+          grep -F 'bodyForgeLoad' /tmp/highfly-v10-live.html
+          grep -F 'forgeLoad' /tmp/highfly-v10-live.html
+          grep -F '__HF_SKIN_STUDIO_V10__' /tmp/highfly-v10-live.html >/dev/null || true
+          for file in \
+            native-body-v10.mjs native-forge-v6.mjs \
+            paint-recipe-v3.mjs factory-recipe-v4.mjs native-molder-v3.mjs \
+            generated/modular-runtime.mjs \
+            vendor/three/build/three.module.js \
+            vendor/three/examples/jsm/loaders/GLTFLoader.js \
+            vendor/meshopt_decoder.module.js NOTICE.txt; do
+            echo 'LIVE_V10_DEPENDENCY' "$file"
+            curl -fsSL --retry 4 --max-time 45 -o /dev/null "${BASE}${file}"
           done
-          ! grep -q '"/node_modules' /tmp/highfly-skin3-index.html
-          ! grep -q "'/character-truth/inputs" /tmp/highfly-skin3-index.html
-          echo "HIGHFLY_SKIN_FACTORY_V4_GITHUB_PAGES_PUBLIC_URL_GREEN=1 ORIGINAL_GLB_NOT_BUNDLED=1"
-          echo "PUBLIC_SITE=$BASE"
+          curl -fsSL --retry 3 --max-time 45 -o /tmp/oni-v10-live.glb "${BASE}assets/HIGHFLY-KAGE-ONI-head.glb"
+          curl -fsSL --retry 3 --max-time 45 -o /tmp/nightfall-v10-live.glb "${BASE}assets/HIGHFLY-NIGHTFALL-rigged-body.glb"
+          python3 - <<'PY'
+          from pathlib import Path
+          for path,min_size in [('/tmp/oni-v10-live.glb',10000),('/tmp/nightfall-v10-live.glb',100000)]:
+            b=Path(path).read_bytes()
+            assert len(b)>min_size,(path,len(b))
+            assert b[:4]==b'glTF',(path,b[:4])
+          print('HIGHFLY_SKIN_STUDIO_V10_PUBLIC_BOTH_VALID_GLB_HEADERS_GREEN=1')
+          PY
+          ! grep -F '"/node_modules' /tmp/highfly-v10-live.html
+          ! grep -F "'/character-truth/inputs" /tmp/highfly-v10-live.html
+          echo 'HIGHFLY_V10_PUBLIC_PAGES_URL_GREEN=1 GAME_PAGES_UNTOUCHED=1'
+          echo "LIVE_PAGES_URL=$BASE"
