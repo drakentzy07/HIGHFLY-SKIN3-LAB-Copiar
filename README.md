@@ -1,8 +1,14 @@
-# HIGHFLY Skin Studio V10 — GitHub Pages independiente
+# HIGHFLY Skin Studio V10 + V12 candidata — GitHub Pages independiente
 
-**Sitio:** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/
+**Estable V10:** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/
+
+**Vista previa V12 (aislada):** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/v12/
+
+**V12 candidata fijada:** `drakentzy07/cobalt-hollow-lab@67ee8fa0e32db82f9d93a4b00f2694459cca104a`, RUN GREEN [#37956239750](https://github.com/drakentzy07/cobalt-hollow-lab/actions/runs/37956239750). V12 NO reemplaza a V10: su subruta se añade con su propio HTML, módulos y GLB originales. Conservar ambas permite comparar en un Samsung S23 Ultra antes de la aceptación artística.
 
 **V10 fuente fijada:** `drakentzy07/cobalt-hollow-lab@7f5f69de4e572b2ea79b2e8a1bc7bda3ece0425d` — RUN original V10 GREEN #37874069648.
+
+**V10 backup:** rama `backup-public-v10-2026-10-09`.
 
 **Anterior V4 (backup):** rama `backup-public-v4-2026-10-09`; ningún cambio en el juego.
 
@@ -24,3 +30,6 @@ La rutina de verificación separada comprueba la URL pública y los dos GLB. Si 
 Se consultan los créditos y licencias de los assets de fuente: [CREDITS.md upstream](https://github.com/levy-street/world-of-claudecraft/blob/9b57e49c9676d75962700f828cc00a50a9a988b5/CREDITS.md). KayKit character packs y Rig_Medium animations constan CC0 en ese registro, pero el registro gobierna cada media asset y no se debe inferir que el MIT del código autoriza toda su arte.
 
 **Ruta de regreso V4:** `backup-public-v4-2026-10-09`. La copia de seguridad es una rama aislada y **no** dispara despliegues.
+
+## V12 preview — NO es aún skin premium aprobada
+La revisión V12 construye 92 mallas nuevas/previas (36 de V8 + 56 añadidas), 23 huesos originales, 15.376 triángulos y 7.884 vértices ponderados en el cuerpo; abdomen, cadera, muslos, faldones, hombreras, cuello y espalda, con gambesón oscuro reversible. Falta aceptación visual de usuario, clipping completo y Unity/S23 físico. No modificar la Pages del juego.
