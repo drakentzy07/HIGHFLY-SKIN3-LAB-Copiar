@@ -1,4 +1,4 @@
-name: HIGHFLY SKIN FACTORY V4 - Independent Pages
+name: HIGHFLY SKIN STUDIO V10 - Independent Pages
 on:
   push:
     branches: [main]
@@ -10,91 +10,213 @@ permissions:
 concurrency:
   group: highfly-skin3-pages
   cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout the separate Skin Factory Pages repository
+      - name: Checkout ONLY independent Skin Studio Pages repository
         uses: actions/checkout@v4
-      - name: Read-only checkout of approved GREEN Skin Factory V4 source
+
+      - name: Read-only checkout of exactly verified V10 source (NEVER game main)
         uses: actions/checkout@v4
         with:
           repository: drakentzy07/cobalt-hollow-lab
-          ref: 34e9308e42f0cb9945afd941ef70b59fc573be6c
+          ref: 7f5f69de4e572b2ea79b2e8a1bc7bda3ece0425d
           path: pinned-source
           sparse-checkout: |
             character-truth/integration-modules
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install browser dependencies in independent repository
-        run: npm install --no-save --package-lock=false three@0.180.0 meshoptimizer@0.23.0 esbuild@0.25.12
-      - name: Copy only verified additive V4 files; never old Skin Lab source
+            scripts/skin_lab
+
+      - name: Copy ONLY V10 lab files from verified immutable commit
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C pinned-source rev-parse HEAD)" = "34e9308e42f0cb9945afd941ef70b59fc573be6c"
-          mkdir -p character-truth/integration-modules character-truth/generated
-          for file in paint-recipe-v3.mjs native-molder-v3.mjs factory-recipe-v4.mjs package-factory-v4.mjs; do
+          test "$(git -C pinned-source rev-parse HEAD)" = '7f5f69de4e572b2ea79b2e8a1bc7bda3ece0425d'
+          mkdir -p character-truth/integration-modules character-truth/generated scripts/skin_lab character-truth/inputs character-truth/forge-v6-bind character-truth/v8-proof
+          for file in \
+            studio-v10.html native-body-v10.mjs native-forge-v6.mjs \
+            nightfall-body-forge.py nightfall-body-gate.cjs \
+            kage-oni-forge.py prepare-native-body.mjs \
+            studio-v10-unified-gate.cjs package-studio-v10.mjs \
+            paint-recipe-v3.mjs native-molder-v3.mjs factory-recipe-v4.mjs; do
             cp "pinned-source/character-truth/integration-modules/$file" "character-truth/integration-modules/$file"
           done
-          cp pinned-source/character-truth/integration-modules/factory-v4-camera-stable.html character-truth/integration-modules/factory-v4.html
-          ! find character-truth -iname '*.glb' | grep -q .
-          echo "HIGHFLY_SOURCE_PIN_OK=1 PRODUCTION_GAME_NOT_CHECKED_OUT=1"
-      - name: Validate and build frozen original character compositor
+          cp pinned-source/scripts/skin_lab/extract_bind_reference.mjs scripts/skin_lab/
+          ! find character-truth -type f -name '*.glb' | grep -q .
+          echo 'HIGHFLY_V10_EXACT_GREEN_SOURCE_PIN=1 PRODUCTION_SOURCE_NOT_COPIED=1'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install original Three.js, Meshopt, glTF tools and Playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false \
+            three@0.180.0 meshoptimizer@0.23.0 esbuild@0.25.12 \
+            @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions \
+            gltf-validator playwright@1.55.0
+
+      - name: Verify permitted KayKit original character provenance and pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          REV=9b57e49c9676d75962700f828cc00a50a9a988b5
+          BASE="https://raw.githubusercontent.com/levy-street/world-of-claudecraft/$REV"
+          curl --retry 3 -fsSL "$BASE/CREDITS.md" -o /tmp/highfly-upstream-credits.md
+          grep -F 'Character models + animations (knight, mage, rogue, barbarian, hooded rogue)' /tmp/highfly-upstream-credits.md | grep -F 'CC0 1.0'
+          grep -F 'Extra character animation library (Rig_Medium)' /tmp/highfly-upstream-credits.md | grep -F 'CC0 1.0'
+          curl --retry 3 -fsSL "$BASE/public/models/chars/modular/warrior_modular.glb" -o character-truth/inputs/warrior_modular.glb
+          test "$(git hash-object character-truth/inputs/warrior_modular.glb)" = 'e3fb52b8e064ab3927f3bc34a5ba7d04e8d701c2'
+          echo HIGHFLY_V10_KAYKIT_CC0_CREDITS_AND_NATIVE_WARRIOR_BLOB_GREEN=1
+
+      - name: Build the exact authentic original character compositor, read-only
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import hashlib,pathlib,urllib.request,time
-          revision='9b57e49c9676d75962700f828cc00a50a9a988b5'
+          rev='9b57e49c9676d75962700f828cc00a50a9a988b5'
           pins={'modular.ts':'d2ad732114b01a0aa9de5a882e0a6980d54225fb',
                 'underhair.generated.ts':'630408c0ffbffb61d06e1a398f28b0d89f820dfe'}
           for name,pin in pins.items():
-            url=f'https://raw.githubusercontent.com/levy-street/world-of-claudecraft/{revision}/src/render/characters/{name}'
-            for attempt in range(3):
-              try:
-                data=urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'HIGHFLY-SKINFACTORY-PAGES'}),timeout=60).read()
-                break
-              except Exception:
-                if attempt==2:raise
-                time.sleep(2)
-            digest=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
-            if digest!=pin:raise SystemExit('UPSTREAM_CONTENT_MISMATCH '+name)
-            pathlib.Path('character-truth/generated',name).write_bytes(data)
-            print('FROZEN_MODEL_SOURCE_VERIFIED',name)
+              url=f'https://raw.githubusercontent.com/levy-street/world-of-claudecraft/{rev}/src/render/characters/{name}'
+              for attempt in range(3):
+                  try:
+                      data=urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'HIGHFLY-SKIN-STUDIO-V10'}),timeout=60).read()
+                      break
+                  except Exception:
+                      if attempt==2:raise
+                      time.sleep(2)
+              digest=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+              if digest!=pin:raise SystemExit('PINNED_ORIGINAL_COMPOSITOR_MISMATCH '+name)
+              pathlib.Path('character-truth/generated',name).write_bytes(data)
+              print('HIGHFLY_COMPOSITOR_FROZEN_VERIFIED',name)
           PY
           npx esbuild character-truth/generated/modular.ts --bundle --format=esm --platform=browser --outfile=character-truth/generated/modular-runtime.mjs
-      - name: Build static 3D editor, model assets kept at pinned original origin
+
+      - name: Download Blender official 4.2.23 LTS and verify SHA-256
         shell: bash
         run: |
           set -euo pipefail
-          node --check character-truth/integration-modules/factory-recipe-v4.mjs
-          node --check character-truth/integration-modules/native-molder-v3.mjs
-          node character-truth/integration-modules/package-factory-v4.mjs
-          test -s highfly-skinfactory-v4-preview/index.html
-          test -s highfly-skinfactory-v4-preview/NOTICE.txt
-          ! find highfly-skinfactory-v4-preview -iname '*.glb' | grep -q .
-          echo "SKIN3_PAGES_BUILD_GREEN=1 ORIGINAL_GLBS_BUNDLED=0 MAIN_GAME_UNCHANGED=1"
-      - name: Store inspectable static build
+          VERSION='4.2.23'
+          NAME="blender-${VERSION}-linux-x64.tar.xz"
+          BASE="https://download.blender.org/release/Blender4.2"
+          mkdir -p "$RUNNER_TEMP/highfly-v10-blender" "$RUNNER_TEMP/highfly-v10-download"
+          cd "$RUNNER_TEMP/highfly-v10-download"
+          curl -fsSL --retry 3 --connect-timeout 15 --max-time 390 "$BASE/$NAME" -o "$NAME"
+          curl -fsSL --retry 3 --max-time 50 "$BASE/blender-${VERSION}.sha256" -o SHA256SUMS
+          grep -F "$NAME" SHA256SUMS | head -1 | sha256sum --check
+          tar -xJf "$NAME" --strip-components=1 -C "$RUNNER_TEMP/highfly-v10-blender"
+          test -x "$RUNNER_TEMP/highfly-v10-blender/blender"
+          echo "$RUNNER_TEMP/highfly-v10-blender" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/highfly-v10-blender/blender" --version | head -2
+
+      - name: Decode original Meshopt rig to a separate Blender geometry/skeleton reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          node character-truth/integration-modules/prepare-native-body.mjs \
+            character-truth/inputs/warrior_modular.glb character-truth/v8-proof/native-plain.glb
+          node scripts/skin_lab/extract_bind_reference.mjs \
+            --src character-truth/inputs/warrior_modular.glb --out character-truth/forge-v6-bind --bone head
+          test -s character-truth/forge-v6-bind/reference_head.glb
+          test -s character-truth/v8-proof/native-plain.glb
+
+      - name: Reforge Kage-Oni head GLB and full original Nightfall weighted body
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          mkdir -p character-truth/integration-modules/assets
+          blender --background --factory-startup --python-exit-code 99 \
+            --python character-truth/integration-modules/kage-oni-forge.py -- \
+            --native character-truth/forge-v6-bind/reference_head.glb \
+            --out character-truth/integration-modules/assets/HIGHFLY-KAGE-ONI-head.glb \
+            | tee /tmp/highfly-v10-head-forge.log
+          grep -F 'HIGHFLY_KAGE_ONI_BLENDER_FORGE_GREEN' /tmp/highfly-v10-head-forge.log
+          blender --background --factory-startup --python-exit-code 99 \
+            --python character-truth/integration-modules/nightfall-body-forge.py -- \
+            --native character-truth/v8-proof/native-plain.glb \
+            --out character-truth/v8-proof/HIGHFLY-NIGHTFALL-rigged-body.glb \
+            | tee /tmp/highfly-v10-body-forge.log
+          grep -F 'HIGHFLY_V8_WEIGHTED_ORIGINAL_ARMOR_EXPORTED' /tmp/highfly-v10-body-forge.log
+          node character-truth/integration-modules/nightfall-body-gate.cjs
+          cp character-truth/v8-proof/HIGHFLY-NIGHTFALL-rigged-body.glb \
+            character-truth/integration-modules/assets/HIGHFLY-NIGHTFALL-rigged-body.glb
+          test -s character-truth/integration-modules/assets/HIGHFLY-KAGE-ONI-head.glb
+          test -s character-truth/integration-modules/assets/HIGHFLY-NIGHTFALL-rigged-body.glb
+          echo HIGHFLY_V10_BOTH_ACTUAL_BLENDER_ORIGINAL_GLBS_REGENERATED_GREEN=1
+
+      - name: Package V10 static HTML, editable Three.js studio and exactly two new GLBs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check character-truth/integration-modules/native-body-v10.mjs
+          node --check character-truth/integration-modules/native-forge-v6.mjs
+          node character-truth/integration-modules/package-studio-v10.mjs
+          test -s highfly-skinfactory-v10-preview/index.html
+          test -s highfly-skinfactory-v10-preview/native-body-v10.mjs
+          test -s highfly-skinfactory-v10-preview/assets/HIGHFLY-KAGE-ONI-head.glb
+          test -s highfly-skinfactory-v10-preview/assets/HIGHFLY-NIGHTFALL-rigged-body.glb
+          ! find highfly-skinfactory-v10-preview -iname 'warrior_modular.glb' | grep -q .
+          grep -F 'Studio V10' highfly-skinfactory-v10-preview/index.html
+          cat >> highfly-skinfactory-v10-preview/NOTICE.txt <<'NOTE'
+          This isolated published lab is V10, not the game, and is not a commercial
+          asset pack. Authored armor and helmet are new geometry; source Hunter GLB
+          remains hosted at pinned upstream and is not packaged. The upstream
+          CREDITS.md identifies KayKit character and Rig_Medium animation packs as
+          CC0 1.0. Confirm any additional artwork's licensing separately.
+          NOTE
+          echo HIGHFLY_V10_INDEPENDENT_STATIC_BUILD_GREEN=1
+
+      - name: Full browser safety gate on site destined for Pages (S23 landscape emulation)
+        shell: bash
+        timeout-minutes: 7
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          python3 -m http.server 4177 --bind 127.0.0.1 \
+            --directory highfly-skinfactory-v10-preview > /tmp/highfly-v10-independent-browser.log 2>&1 &
+          sleep 2
+          HF_SITE_PORT=4177 node character-truth/integration-modules/studio-v10-unified-gate.cjs
+          grep -F '"green": true' character-truth/v10-unified-proof/v10-browser-report.json
+          echo HIGHFLY_V10_DEPLOYABLE_15_BROWSER_CHECKS_GREEN=1
+
+      - name: Preserve snapshots and 3D proof separately from hosted site
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: highfly-skinfactory-v4-static-build
-          path: highfly-skinfactory-v4-preview/
+          name: HIGHFLY-V10-PAGES-ORIGINAL-HUNTER-QA
+          path: |
+            character-truth/v10-unified-proof/
+            character-truth/v8-proof/nightfall-skinning-gate.json
           retention-days: 30
-      - name: Upload public-site artifact
+          if-no-files-found: warn
+
+      - name: Archive standalone deployment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-V10-PAGES-WEBSITE
+          path: highfly-skinfactory-v10-preview/
+          retention-days: 30
+
+      - name: Upload independent Pages V10 website, NEVER game deployment
         uses: actions/upload-pages-artifact@v3
         with:
-          path: highfly-skinfactory-v4-preview/
+          path: highfly-skinfactory-v10-preview/
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
     steps:
-      - name: Check Pages setup on independent repository
+      - name: Configure only separate Skin Studio Pages
         uses: actions/configure-pages@v5
-      - name: Publish ONLY HIGHFLY-SKIN3-LAB-Copiar
+      - name: Publish ONLY drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
         id: deployment
         uses: actions/deploy-pages@v4
