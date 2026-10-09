@@ -1,4 +1,4 @@
-# HIGHFLY Skin Studio — V10 estable + V12, V13.1 y V14 experimentales (Pages aislada)
+# HIGHFLY Skin Studio — V10 estable + V12, V13.1, V14 y V14.1 experimentales (Pages aislada)
 
 **Estable V10:** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/
 
@@ -7,6 +7,10 @@
 **Vista previa V13.1 (aislada):** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/v13-1/
 
 **Vista previa V14 (modelo 3D real, aislada):** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/v14/
+
+**Vista previa V14.1 (encastre casco+cabeza real, aislada):** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/v14-1/
+
+**V14.1 GREEN fijado:** `drakentzy07/cobalt-hollow-lab@a22e0dafcac87452b958afaaa5d7e53a2e10f7b3`, [RUN #37970676230](https://github.com/drakentzy07/cobalt-hollow-lab/actions/runs/37970676230).
 
 **V14 fuente GREEN e inmutable:** `drakentzy07/cobalt-hollow-lab@092b343cc5d4e86fbf200ab27c9f5d87febb781c`, [RUN #37966787917](https://github.com/drakentzy07/cobalt-hollow-lab/actions/runs/37966787917).
 
@@ -57,3 +61,9 @@ El nuevo panel permite seleccionar una malla real Nightfall forjada y modificar 
 **Limitaciones:** versión de laboratorio, NO recrea automáticamente una referencia visual, ni fabrica mallas arbitrarias nuevas; los sliders son escalas/offsets controlados. No tiene validación artística premium ni prueba física S23 ni Unity import; el casco aún se exporta aparte. Posible clipping bajo animaciones extremas: iterar visualmente antes de integrar.
 
 Las 4 rutas se publican en el mismo repositorio Pages independiente; no se toca HIGHFLY game Pages ni su rama congelada.
+
+## V14.1 original helmet fit — closed Oni anatomy
+
+El visor calibró automáticamente la CORONA KAGE-ONI contra la anchura auténtica del cráneo M_Head del original Rig_Medium. Presets open/semi_closed/closed/oni_heavy/samurai_masked, controles reversibles limitados de escala rígida y desplazamiento X/Y/Z, y ocultación/restauración del rostro por tipo de casco. **No reescala ni cambia geometría original del Hunter**, tampoco huesos, weights, animaciones o Unity. La ocultación deliberada de la cabeza en un casco completo no debe interpretarse como eliminación del modelo.
+
+El RUN superó 26 comprobaciones específicas en Chromium simulado tamaño S23, inspecciones frente/perfil/espalda y ambas variantes Hunter. El cociente de anchura corona/cráneo resultó 1.0509 y la escala por defecto 0.9396; son mediciones de laboratorio, no una aprobación artística. El GLB original del casco descargado sigue sin hornear estos offsets; los sliders de fit son por ahora ajustes de vista previa. Se requiere prueba física Samsung y ajuste artístico cuello/casco antes de un set premium final. Solo publicar en la Pages independiente.
