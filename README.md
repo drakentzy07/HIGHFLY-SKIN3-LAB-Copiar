@@ -1,10 +1,14 @@
-# HIGHFLY Skin Studio — V10 estable, V12 y V13.1 experimentales (GitHub Pages aislada)
+# HIGHFLY Skin Studio — V10 estable + V12, V13.1 y V14 experimentales (Pages aislada)
 
 **Estable V10:** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/
 
 **Vista previa V12 (aislada):** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/v12/
 
 **Vista previa V13.1 (aislada):** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/v13-1/
+
+**Vista previa V14 (modelo 3D real, aislada):** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/v14/
+
+**V14 fuente GREEN e inmutable:** `drakentzy07/cobalt-hollow-lab@092b343cc5d4e86fbf200ab27c9f5d87febb781c`, [RUN #37966787917](https://github.com/drakentzy07/cobalt-hollow-lab/actions/runs/37966787917).
 
 **V13.1 fuente GREEN e inmutable:** `drakentzy07/cobalt-hollow-lab@2056719c5428fe050be8aa1cfbbc7cf4b816429e`, [RUN #37961703251](https://github.com/drakentzy07/cobalt-hollow-lab/actions/runs/37961703251).
 
@@ -45,3 +49,11 @@ La ruta /v13-1/ preserva original Rig_Medium y 92 mallas de Nightfall V12. El us
 Las pruebas automáticas abren el editor con dimensiones Android, pintan ambas variantes, descargan efectivamente el GLB, comparan los buffers originales y validan el archivo en Khronos, **sin garantizar todavía una importación funcional en Unity ni en Samsung físico**.
 
 **Las tres rutas se publican juntas; la raíz estable V10 y la candidata V12 NO se reemplazan.** La Pages del juego principal nunca es el destino.
+
+## V14 — FIRST TRUE EDITABLE WEIGHTED GEOMETRY
+
+El nuevo panel permite seleccionar una malla real Nightfall forjada y modificar ancho(X), alto(Y), profundidad(Z), offset X/Y/Z dentro de límites moderados, sincronizando el resultado entre M/F del mismo slot. La geometría fuente se mantiene intacta y es restaurable. Guardar/abrir forma JSON permite continuar el trabajo. Descargar GLB Final produce otro GLB REAL con nuevos POSITION/NORMAL bufferViews y la pintura PBR de V13.1. Se mantienen binarios originales como prefijo byte-identico, los 23 huesos fuente, JOINTS_0/WEIGHTS_0, inversas del bind y animaciones del Hunter como única autoridad. La prueba descarga el archivo real, inspecciona los nuevos vértices de ambas variantes y exige Khronos cero errores. **26 comprobaciones** V14; también regresiones V10–V13.1.
+
+**Limitaciones:** versión de laboratorio, NO recrea automáticamente una referencia visual, ni fabrica mallas arbitrarias nuevas; los sliders son escalas/offsets controlados. No tiene validación artística premium ni prueba física S23 ni Unity import; el casco aún se exporta aparte. Posible clipping bajo animaciones extremas: iterar visualmente antes de integrar.
+
+Las 4 rutas se publican en el mismo repositorio Pages independiente; no se toca HIGHFLY game Pages ni su rama congelada.
