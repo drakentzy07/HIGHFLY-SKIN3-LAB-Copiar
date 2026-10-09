@@ -1,4 +1,4 @@
-name: HIGHFLY SKIN STUDIO V10 V12 V13.1 + V14 - Independent Pages
+name: HIGHFLY SKIN STUDIO V10 V12 V13.1 V14 + V14.1 - Independent Pages
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 60
     steps:
       - name: Checkout ONLY independent Skin Studio Pages repository
         uses: actions/checkout@v4
@@ -387,6 +387,66 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      - name: Pin source original Hunter V14.1 headset auto-fit GREEN read-only
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: a22e0dafcac87452b958afaaa5d7e53a2e10f7b3
+          path: pinned-v14-1-green
+          sparse-checkout: |
+            character-truth/integration-modules
+
+      - name: Stage isolated V14.1 only, preserving all four previous public URL roots
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-v14-1-green rev-parse HEAD)" = 'a22e0dafcac87452b958afaaa5d7e53a2e10f7b3'
+          for file in studio-v14-1.html native-forge-v14-1.mjs \
+            studio-v14-1-fit-gate.cjs package-studio-v14-1.mjs; do
+             cp "pinned-v14-1-green/character-truth/integration-modules/$file" \
+                "character-truth/integration-modules/$file"
+          done
+          grep -F 'Studio V10' highfly-skinfactory-v10-preview/index.html
+          grep -F 'Studio V12' highfly-skinfactory-v10-preview/v12/index.html
+          grep -F 'Studio V13.1' highfly-skinfactory-v10-preview/v13-1/index.html
+          grep -F 'Studio V14' highfly-skinfactory-v10-preview/v14/index.html
+          echo HIGHFLY_V14_1_FOUR_PREVIOUS_PUBLIC_VERSIONS_INTACT_GREEN=1
+
+      - name: Browser-gate actual calibrated Kage-Oni and archive independent V14.1
+        shell: bash
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          node --check character-truth/integration-modules/native-forge-v14-1.mjs
+          node character-truth/integration-modules/package-studio-v14-1.mjs
+          test -s highfly-skinfactory-v14-1-preview/index.html
+          test -s highfly-skinfactory-v14-1-preview/native-forge-v14-1.mjs
+          grep -F 'Studio V14.1' highfly-skinfactory-v14-1-preview/index.html
+          ! find highfly-skinfactory-v14-1-preview -iname 'warrior_modular.glb' | grep -q .
+          python3 -m http.server 4186 --bind 127.0.0.1 \
+            --directory highfly-skinfactory-v14-1-preview >/tmp/hf-v14-1-pages-qa.log 2>&1 &
+          sleep 2
+          HF_SITE_PORT=4186 node character-truth/integration-modules/studio-v14-1-fit-gate.cjs
+          test -s character-truth/v14-1-fit-proof/v14-1-report.json
+          grep -F '"green": true' character-truth/v14-1-fit-proof/v14-1-report.json
+          mkdir -p highfly-skinfactory-v10-preview/v14-1
+          cp -a highfly-skinfactory-v14-1-preview/. highfly-skinfactory-v10-preview/v14-1/
+          grep -F 'Studio V10' highfly-skinfactory-v10-preview/index.html
+          grep -F 'Studio V12' highfly-skinfactory-v10-preview/v12/index.html
+          grep -F 'Studio V13.1' highfly-skinfactory-v10-preview/v13-1/index.html
+          grep -F 'Studio V14' highfly-skinfactory-v10-preview/v14/index.html
+          grep -F 'Studio V14.1' highfly-skinfactory-v10-preview/v14-1/index.html
+          echo HIGHFLY_V14_1_PUBLIC_CANDIDATE_AND_OLD_4_VERSIONS_SAFE_GREEN=1
+
+      - name: Preserve real fitting measurements and front/profile/back/sex comparison shots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-V14-1-PAGES-REAL-ANATOMICAL-FIT-QA
+          path: character-truth/v14-1-fit-proof/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Archive separate V12 candidate screenshots and original model tests
         if: always()
         uses: actions/upload-artifact@v4
@@ -413,7 +473,7 @@ jobs:
       - name: Archive standalone deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: HIGHFLY-V10-V12-V13-1-AND-V14-PREVIEW-INDEPENDENT-PAGES
+          name: HIGHFLY-V10-V12-V13-1-V14-AND-V14-1-INDEPENDENT-PAGES
           path: highfly-skinfactory-v10-preview/
           retention-days: 30
 
@@ -500,4 +560,27 @@ jobs:
           PY
           echo HIGHFLY_PUBLIC_LIVE_V10_V12_V13_1_AND_V14_PAGES_GREEN=1
           echo "V14_PUBLIC_PREVIEW_URL=${BASE}v14/"
+          for attempt in {1..18}; do
+            if curl -fsSL --max-time 25 "${BASE}v14-1/?fit=1" -o /tmp/hf-v141-live.html &&
+               grep -F 'Studio V14.1' /tmp/hf-v141-live.html >/dev/null &&
+               grep -F 'helmetFitApply' /tmp/hf-v141-live.html >/dev/null; then break; fi
+            sleep 5
+          done
+          grep -F 'Studio V14.1' /tmp/hf-v141-live.html >/dev/null
+          grep -F 'helmetFitApply' /tmp/hf-v141-live.html >/dev/null
+          for file in native-forge-v14-1.mjs bake-native-shape-v14.mjs \
+             assets/HIGHFLY-KAGE-ONI-head.glb assets/HIGHFLY-NIGHTFALL-rigged-body.glb; do
+             curl -fsSL --retry 3 --max-time 35 -o /dev/null "${BASE}v14-1/${file}"
+          done
+          curl -fsSL --retry 3 -o /tmp/hf-v141-nightfall.glb \
+            "${BASE}v14-1/assets/HIGHFLY-NIGHTFALL-rigged-body.glb"
+          python3 - <<'PY'
+          from pathlib import Path
+          original=Path('/tmp/hf-v14-premium-live.glb').read_bytes()
+          current=Path('/tmp/hf-v141-nightfall.glb').read_bytes()
+          assert original==current and current[:4]==b'glTF'
+          print('HIGHFLY_V14_1_PUBLIC_ARMOR_BYTE_IDENTICAL_TO_V14_GREEN=1')
+          PY
+          echo HIGHFLY_V14_1_ALL_FIVE_LIVE_PAGES_AND_ORIGINAL_RIG_GREEN=1
+          echo "V14_1_PUBLIC_URL=${BASE}v14-1/"
 
