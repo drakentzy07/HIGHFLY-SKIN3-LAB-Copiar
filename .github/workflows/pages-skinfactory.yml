@@ -369,3 +369,44 @@ jobs:
       - name: Publish ONLY drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify ACTUAL LIVE independent Pages serves V10, V12 and V13.1
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          BASE='https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/'
+          for attempt in {1..24}; do
+             if curl -fsSL --max-time 25 "${BASE}?check=10" -o /tmp/hf-live-v10.html &&
+                grep -F 'Studio V10' /tmp/hf-live-v10.html >/dev/null &&
+                curl -fsSL --max-time 25 "${BASE}v12/?check=12" -o /tmp/hf-live-v12.html &&
+                grep -F 'Studio V12' /tmp/hf-live-v12.html >/dev/null &&
+                curl -fsSL --max-time 25 "${BASE}v13-1/?check=131" -o /tmp/hf-live-v131.html &&
+                grep -F 'Studio V13.1' /tmp/hf-live-v131.html >/dev/null &&
+                grep -F 'premiumBakedGlb' /tmp/hf-live-v131.html >/dev/null; then
+                break
+             fi
+             sleep 5
+          done
+          grep -F 'Studio V10' /tmp/hf-live-v10.html >/dev/null
+          grep -F 'Studio V12' /tmp/hf-live-v12.html >/dev/null
+          grep -F 'Studio V13.1' /tmp/hf-live-v131.html >/dev/null
+          grep -F 'premiumBakedGlb' /tmp/hf-live-v131.html >/dev/null
+          for name in bake-nightfall-v13-1.mjs premium-paint-v13.mjs \
+            native-body-v13-1.mjs assets/HIGHFLY-KAGE-ONI-head.glb \
+            vendor/three/build/three.module.js; do
+            curl -fsSL --retry 3 --max-time 30 -o /dev/null "${BASE}v13-1/${name}"
+          done
+          curl -fsSL --retry 3 -o /tmp/hf-v12-premium-live.glb "${BASE}v12/assets/HIGHFLY-NIGHTFALL-rigged-body.glb"
+          curl -fsSL --retry 3 -o /tmp/hf-v131-premium-live.glb "${BASE}v13-1/assets/HIGHFLY-NIGHTFALL-rigged-body.glb"
+          python3 - <<'PY'
+          from pathlib import Path
+          v12=Path('/tmp/hf-v12-premium-live.glb').read_bytes()
+          v13=Path('/tmp/hf-v131-premium-live.glb').read_bytes()
+          assert len(v12)>900000 and len(v13)>900000
+          assert v12[:4]==v13[:4]==b'glTF'
+          assert v12==v13,'Original V12 GLB must remain the exact same base to apply V13.1 repaint'
+          print('HIGHFLY_PUBLIC_V12_AND_V13_1_ORIGINAL_FORGED_GLB_BYTE_IDENTICAL_GREEN=1')
+          PY
+          echo HIGHFLY_PUBLIC_LIVE_V10_V12_AND_V13_1_PAGES_GREEN=1
+          echo "V13_1_PUBLIC_PREVIEW_URL=${BASE}v13-1/"
+
