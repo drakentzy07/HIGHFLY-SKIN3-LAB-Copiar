@@ -1,8 +1,8 @@
-name: HIGHFLY SKIN STUDIO V10 V12 and V13.1 - Live Pages Verification
+name: HIGHFLY SKIN STUDIO V10 V12 V13.1 + V14 - Live Verification
 on:
   workflow_run:
     workflows:
-      - HIGHFLY SKIN STUDIO V10 V12 + V13.1 - Independent Pages
+      - HIGHFLY SKIN STUDIO V10 V12 V13.1 + V14 - Independent Pages
     types: [completed]
 permissions:
   contents: read
@@ -118,4 +118,30 @@ jobs:
           print('HIGHFLY_V13_1_LIVE_EDITOR_PRESERVES_V12_GLB_BINARY_GREEN=1')
           PY
           echo HIGHFLY_V13_1_PBR_BAKED_GLB_PAGES_PUBLIC_PREVIEW_GREEN=1
+          for attempt in {1..18}; do
+            if curl -fsSL --max-time 25 "${BASE}v14/?candidate=1" \
+              -o /tmp/highfly-v14-live.html &&
+              grep -F 'Studio V14' /tmp/highfly-v14-live.html >/dev/null &&
+              grep -F 'shapeBakedGlb' /tmp/highfly-v14-live.html >/dev/null; then break; fi
+            sleep 5
+          done
+          grep -F 'Studio V14' /tmp/highfly-v14-live.html
+          grep -F 'shapeBakedGlb' /tmp/highfly-v14-live.html
+          for file in \
+            native-shape-v14.mjs bake-native-shape-v14.mjs \
+            assets/HIGHFLY-NIGHTFALL-rigged-body.glb \
+            assets/HIGHFLY-KAGE-ONI-head.glb NOTICE.txt; do
+             curl -fsSL --retry 3 --max-time 45 -o /dev/null "${BASE}v14/${file}"
+          done
+          curl -fsSL --retry 3 --max-time 50 -o /tmp/nightfall-v14-live.glb \
+            "${BASE}v14/assets/HIGHFLY-NIGHTFALL-rigged-body.glb"
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('/tmp/nightfall-v12-live.glb').read_bytes()
+          v14=Path('/tmp/nightfall-v14-live.glb').read_bytes()
+          assert len(v14)>900000 and v14[:4]==b'glTF'
+          assert source==v14,'V14 must preserve exactly the original Nightfall V12 base GLB'
+          print('HIGHFLY_V14_PUBLIC_ORIGINAL_WEIGHTED_NIGHTFALL_BASE_UNALTERED_GREEN=1')
+          PY
+          echo HIGHFLY_PUBLIC_ALL_FOUR_SKIN_STUDIO_VERSIONS_GREEN=1
           echo "LIVE_PAGES_URL=$BASE"
