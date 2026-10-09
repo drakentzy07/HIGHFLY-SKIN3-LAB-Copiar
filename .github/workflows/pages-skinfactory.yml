@@ -1,4 +1,4 @@
-name: HIGHFLY SKIN STUDIO V10 V12 + V13.1 - Independent Pages
+name: HIGHFLY SKIN STUDIO V10 V12 V13.1 + V14 - Independent Pages
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
     steps:
       - name: Checkout ONLY independent Skin Studio Pages repository
         uses: actions/checkout@v4
@@ -323,6 +323,70 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      - name: Checkout immutable V14 GREEN original-rig sculptor source (read-only)
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 092b343cc5d4e86fbf200ab27c9f5d87febb781c
+          path: pinned-v14-green
+          sparse-checkout: |
+            character-truth/integration-modules
+
+      - name: Stage V14 safely without mutating V10 V12 or V13.1 preview contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-v14-green rev-parse HEAD)" = 092b343cc5d4e86fbf200ab27c9f5d87febb781c
+          for file in \
+            studio-v14.html native-shape-v14.mjs bake-native-shape-v14.mjs \
+            studio-v14-shape-gate.cjs package-studio-v14.mjs; do
+            cp "pinned-v14-green/character-truth/integration-modules/$file" \
+               "character-truth/integration-modules/$file"
+          done
+          for pair in 'index.html Studio V10' 'v12/index.html Studio V12' 'v13-1/index.html Studio V13.1'; do
+             :
+          done
+          grep -F 'Studio V10' highfly-skinfactory-v10-preview/index.html
+          grep -F 'Studio V12' highfly-skinfactory-v10-preview/v12/index.html
+          grep -F 'Studio V13.1' highfly-skinfactory-v10-preview/v13-1/index.html
+          echo HIGHFLY_V14_ALL_PREVIOUS_PUBLIC_STABLE_CANDIDATES_PRESERVED_GREEN=1
+
+      - name: Package and prove TRUE V14 3D sculpt and PBR GLB export in independent mobile browser
+        shell: bash
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          node --check character-truth/integration-modules/native-shape-v14.mjs
+          node --check character-truth/integration-modules/bake-native-shape-v14.mjs
+          node character-truth/integration-modules/package-studio-v14.mjs
+          test -s highfly-skinfactory-v14-preview/index.html
+          test -s highfly-skinfactory-v14-preview/native-shape-v14.mjs
+          test -s highfly-skinfactory-v14-preview/bake-native-shape-v14.mjs
+          grep -F 'Studio V14' highfly-skinfactory-v14-preview/index.html
+          ! find highfly-skinfactory-v14-preview -iname 'warrior_modular.glb' | grep -q .
+          python3 -m http.server 4184 --bind 127.0.0.1 --directory highfly-skinfactory-v14-preview > /tmp/highfly-v14-independent-browser.log 2>&1 &
+          sleep 2
+          HF_SITE_PORT=4184 node character-truth/integration-modules/studio-v14-shape-gate.cjs
+          test -s character-truth/v14-sculpt-proof/HIGHFLY-Nightfall-V14-FORMA-Y-PINTURA-original-rig.glb
+          test -s character-truth/v14-sculpt-proof/khronos-glb-v14-validator.json
+          grep -F '"green": true' character-truth/v14-sculpt-proof/v14-report.json
+          mkdir -p highfly-skinfactory-v10-preview/v14
+          cp -a highfly-skinfactory-v14-preview/. highfly-skinfactory-v10-preview/v14/
+          grep -F 'Studio V10' highfly-skinfactory-v10-preview/index.html
+          grep -F 'Studio V12' highfly-skinfactory-v10-preview/v12/index.html
+          grep -F 'Studio V13.1' highfly-skinfactory-v10-preview/v13-1/index.html
+          grep -F 'Studio V14' highfly-skinfactory-v10-preview/v14/index.html
+          echo HIGHFLY_V14_REAL_ORIGINAL_WEIGHTED_SCULPT_AND_PBR_NESTED_PAGES_GREEN=1
+
+      - name: Archive 3D geometry sculpted GLB actually downloaded from V14 in public-ready preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-V14-PAGES-REAL-NATIVE-SCULPTED-GLB-KHRONOS-QA
+          path: character-truth/v14-sculpt-proof/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Archive separate V12 candidate screenshots and original model tests
         if: always()
         uses: actions/upload-artifact@v4
@@ -349,7 +413,7 @@ jobs:
       - name: Archive standalone deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: HIGHFLY-V10-V12-AND-V13-1-PREVIEW-INDEPENDENT-PAGES
+          name: HIGHFLY-V10-V12-V13-1-AND-V14-PREVIEW-INDEPENDENT-PAGES
           path: highfly-skinfactory-v10-preview/
           retention-days: 30
 
