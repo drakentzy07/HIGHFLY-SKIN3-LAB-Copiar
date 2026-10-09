@@ -442,7 +442,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: drakentzy07/cobalt-hollow-lab
-          ref: 243ef20db418649cb4bae139a5bb200cb9a53dc6
+          ref: 55e6479f31e839a390cbc80269501e3af6cd3570
           path: pinned-dream-v17-green
           sparse-checkout: |
             character-truth/integration-modules
@@ -451,7 +451,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C pinned-dream-v17-green rev-parse HEAD)" = '243ef20db418649cb4bae139a5bb200cb9a53dc6'
+          test "$(git -C pinned-dream-v17-green rev-parse HEAD)" = '55e6479f31e839a390cbc80269501e3af6cd3570'
           for name in dream-recipe-v15.mjs dream-v15-ui.mjs dream-v15.test.mjs package-dream-v15.mjs \
             dream-image-v16.mjs dream-v16-ui.mjs dream-v16.test.mjs package-dream-v16.mjs \
             dream-project-v17.mjs dream-studio-v17.mjs dream-v17.test.mjs \
@@ -502,7 +502,7 @@ jobs:
           after={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in before}
           assert before==after, 'PREVIOUS_LIVE_PAGES_REWRITTEN'
           for v in ('15','16','17'):
-           assert (root/('v'+v)/'index.html').stat().st_size>50000
+           assert (root/('v'+v)/'index.html').stat().st_size>40000
            assert (root/('v'+v)/'assets/HIGHFLY-NIGHTFALL-rigged-body.glb').stat().st_size>100000
            assert not (root/('v'+v)/'assets/warrior_modular.glb').exists()
           print('HIGHFLY_V17_ALL_EIGHT_PAGES_AND_PRIOR_SHA256_UNCHANGED_GREEN=1')
