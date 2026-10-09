@@ -1,8 +1,12 @@
-# HIGHFLY Skin Studio V10 + V12 candidata — GitHub Pages independiente
+# HIGHFLY Skin Studio — V10 estable, V12 y V13.1 experimentales (GitHub Pages aislada)
 
 **Estable V10:** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/
 
 **Vista previa V12 (aislada):** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/v12/
+
+**Vista previa V13.1 (aislada):** https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/v13-1/
+
+**V13.1 fuente GREEN e inmutable:** `drakentzy07/cobalt-hollow-lab@2056719c5428fe050be8aa1cfbbc7cf4b816429e`, [RUN #37961703251](https://github.com/drakentzy07/cobalt-hollow-lab/actions/runs/37961703251).
 
 **V12 candidata fijada:** `drakentzy07/cobalt-hollow-lab@67ee8fa0e32db82f9d93a4b00f2694459cca104a`, RUN GREEN [#37956239750](https://github.com/drakentzy07/cobalt-hollow-lab/actions/runs/37956239750). V12 NO reemplaza a V10: su subruta se añade con su propio HTML, módulos y GLB originales. Conservar ambas permite comparar en un Samsung S23 Ultra antes de la aceptación artística.
 
@@ -33,3 +37,11 @@ Se consultan los créditos y licencias de los assets de fuente: [CREDITS.md upst
 
 ## V12 preview — NO es aún skin premium aprobada
 La revisión V12 construye 92 mallas nuevas/previas (36 de V8 + 56 añadidas), 23 huesos originales, 15.376 triángulos y 7.884 vértices ponderados en el cuerpo; abdomen, cadera, muslos, faldones, hombreras, cuello y espalda, con gambesón oscuro reversible. Falta aceptación visual de usuario, clipping completo y Unity/S23 físico. No modificar la Pages del juego.
+
+## V13.1 — pintura PBR real horneada en GLB
+
+La ruta /v13-1/ preserva original Rig_Medium y 92 mallas de Nightfall V12. El usuario viste Nightfall, toca una placa, edita color/metal/rugosidad y descarga **un NUEVO GLB 3D con la pintura físicamente guardada en los materiales**, distinto de la receta JSON. Su fuente es el GLB original de Nightfall; se duplican únicamente materiales/definiciones JSON de las piezas seleccionadas sin cambiar ni un byte de buffers binarios, pesos, articulaciones ni geometría. El casco Kage-Oni permanece como GLB separado; las 22 animaciones donantes incluidas en el GLB de forja se omiten del export pintado para no duplicar autoridad del Hunter.
+
+Las pruebas automáticas abren el editor con dimensiones Android, pintan ambas variantes, descargan efectivamente el GLB, comparan los buffers originales y validan el archivo en Khronos, **sin garantizar todavía una importación funcional en Unity ni en Samsung físico**.
+
+**Las tres rutas se publican juntas; la raíz estable V10 y la candidata V12 NO se reemplazan.** La Pages del juego principal nunca es el destino.
