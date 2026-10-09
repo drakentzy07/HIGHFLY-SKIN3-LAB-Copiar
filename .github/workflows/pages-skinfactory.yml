@@ -473,4 +473,31 @@ jobs:
           PY
           echo HIGHFLY_PUBLIC_LIVE_V10_V12_AND_V13_1_PAGES_GREEN=1
           echo "V13_1_PUBLIC_PREVIEW_URL=${BASE}v13-1/"
+          # New V14 is only an optional independently-scoped artist QA candidate.
+          # Never replace original approved roots.
+          for attempt in {1..24}; do
+            if curl -fsSL --max-time 25 "${BASE}v14/?version=14" -o /tmp/hf-live-v14.html &&
+               grep -F 'Studio V14' /tmp/hf-live-v14.html >/dev/null &&
+               grep -F 'shapeBakedGlb' /tmp/hf-live-v14.html >/dev/null; then break; fi
+            sleep 5
+          done
+          grep -F 'Studio V14' /tmp/hf-live-v14.html >/dev/null
+          grep -F 'shapeBakedGlb' /tmp/hf-live-v14.html >/dev/null
+          for file in native-shape-v14.mjs bake-native-shape-v14.mjs \
+             premium-paint-v13.mjs bake-nightfall-v13-1.mjs native-body-v13-1.mjs \
+             vendor/three/build/three.module.js; do
+             curl -fsSL --retry 3 --max-time 35 -o /dev/null "${BASE}v14/${file}"
+          done
+          curl -fsSL --retry 3 -o /tmp/hf-v14-premium-live.glb \
+             "${BASE}v14/assets/HIGHFLY-NIGHTFALL-rigged-body.glb"
+          python3 - <<'PY'
+          from pathlib import Path
+          v12=Path('/tmp/hf-v12-premium-live.glb').read_bytes()
+          v14=Path('/tmp/hf-v14-premium-live.glb').read_bytes()
+          assert len(v14)>900000 and v14[:4]==b'glTF'
+          assert v14==v12,'V14 must start from exact same original V12 geometry BEFORE user edits'
+          print('HIGHFLY_V14_PUBLIC_SOURCE_ARMOR_EXACT_ORIGINAL_RIG_GREEN=1')
+          PY
+          echo HIGHFLY_PUBLIC_LIVE_V10_V12_V13_1_AND_V14_PAGES_GREEN=1
+          echo "V14_PUBLIC_PREVIEW_URL=${BASE}v14/"
 
