@@ -775,6 +775,78 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      # Skin7 uses its own /paladin-lab/ nested route. V10-V20 are never edited.
+      - name: Pin exact Skin7 TRUE PALADIN lab + real Blender automatic refiner (read only)
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: d88632187d522affc5efad385acdd8019591716f
+          path: pinned-paladin-lab
+          sparse-checkout: |
+            character-truth/skin7-paladin-compare-lab
+            character-truth/skin7-paladin-first-reforge.py
+            character-truth/skin7-paladin-forja-sagrada-recipe.json
+
+      - name: Forge Paladin's own source geometry and package independent FOUR-STATION lab
+        shell: bash
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-paladin-lab rev-parse HEAD)" = 'd88632187d522affc5efad385acdd8019591716f'
+          BASE='highfly-skinfactory-v10-preview'
+          mkdir -p "$BASE/paladin-lab/assets" character-truth/paladin-preview-proof
+          cp pinned-paladin-lab/character-truth/skin7-paladin-compare-lab/index.html "$BASE/paladin-lab/index.html"
+          cp pinned-paladin-lab/character-truth/skin7-paladin-compare-lab/paladin-lab.mjs "$BASE/paladin-lab/paladin-lab.mjs"
+          cp character-truth/inputs/warrior_modular.glb "$BASE/paladin-lab/assets/warrior_modular.glb"
+          test "$(git hash-object "$BASE/paladin-lab/assets/warrior_modular.glb")" = 'e3fb52b8e064ab3927f3bc34a5ba7d04e8d701c2'
+          node --check "$BASE/paladin-lab/paladin-lab.mjs"
+          python3 -m py_compile pinned-paladin-lab/character-truth/skin7-paladin-first-reforge.py
+          blender --background --factory-startup --python-exit-code 99 \
+            --python pinned-paladin-lab/character-truth/skin7-paladin-first-reforge.py -- \
+            --source character-truth/v8-proof/native-plain.glb \
+            --recipe pinned-paladin-lab/character-truth/skin7-paladin-forja-sagrada-recipe.json \
+            --baseline character-truth/paladin-preview-proof/PALADIN-ORIGINAL-11-PARTS.glb \
+            --reforge "$BASE/paladin-lab/assets/PALADIN-HIGHFLY-SOURCE-REFORGE-11-PARTS.glb" \
+            --report character-truth/paladin-preview-proof/reforge.json \
+            | tee /tmp/hf-paladin-pages-forge.log
+          grep -F 'SKIN7_REAL_CLAUDECRAFT_PALADIN_11_MESHES_REFORGED_FROM_NATIVE_SOURCE_GREEN=1' /tmp/hf-paladin-pages-forge.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('character-truth/paladin-preview-proof/reforge.json').read_text())
+          assert r['paladinSourceMeshes']==r['reforgedMeshes']==11
+          assert r['nativeJoints']==23 and r['recipeDrivenGeometry'] and r['recipeControlsActuallyApplied']
+          assert r['sourceOriginalGeometryReused'] and not r['NightfallOverlaid']
+          page=Path('highfly-skinfactory-v10-preview/paladin-lab/index.html').read_text()
+          assert '../v20/vendor/three/' in page and 'Cuatro Estaciones' in page
+          assert Path('highfly-skinfactory-v10-preview/v20/vendor/three/build/three.module.js').exists()
+          assert Path('highfly-skinfactory-v10-preview/v20/vendor/meshopt_decoder.module.js').exists()
+          print('HIGHFLY_SKIN7_NATIVE_3_HUNTERS_AND_22_ANIMATIONS_ASSETS_PACKAGED_GREEN=1')
+          PY
+          echo 'Skin7 independent review /paladin-lab/ · Three authentic 23-bone ClaudeCraft rig instances · 22 source animation clips · source warrior_modular SHA-1 e3fb... and source-based 11 piece Paladin reforge. The fourth commission station stores user direction; static Pages does NOT synthesize arbitrary model from image automatically. Source CC0 per pinned CREDITS.md. No gameplay or legacy routes modified.' > "$BASE/paladin-lab/NOTICE.txt"
+
+      - name: Validate real independently animated THREE-actor lab in S23 landscape Chromium
+        shell: bash
+        timeout-minutes: 7
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4278 --bind 127.0.0.1 \
+            --directory highfly-skinfactory-v10-preview >/tmp/skin7-paladin-http.log 2>&1 &
+          sleep 2
+          HF_PALADIN_LAB_URL=http://127.0.0.1:4278/paladin-lab/ \
+            HF_PALADIN_PROOF=character-truth/paladin-preview-proof/browser \
+            node pinned-paladin-lab/character-truth/skin7-paladin-compare-lab/browser-qa.cjs
+          grep -F '"green": true' character-truth/paladin-preview-proof/browser/gate.json
+          echo HIGHFLY_SKIN7_TRUE_NATIVE_PALADIN_4_STATIONS_BROWSER_QA_GREEN=1
+
+      - name: Store independent SKIN7 mobile screenshots and native animated refit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-SKIN7-PALADIN-LAB-REAL-3-ACTORS-22-CLIPS-4-STATIONS-PROOF
+          path: character-truth/paladin-preview-proof/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Archive standalone deployment package
         uses: actions/upload-artifact@v4
         with:
@@ -965,6 +1037,18 @@ jobs:
           done
           echo HIGHFLY_V20_AND_ALL_TEN_OLDER_INDEPENDENT_PAGES_LIVE_GREEN=1
           echo "SUPREME_V20_PUBLIC_URL=${BASE}v20/"
+          # Skin7 isolated /paladin-lab/ is additional; root V10 and v20 are immutable.
+          for attempt in {1..24}; do
+            if curl -fsSL --max-time 25 "${BASE}paladin-lab/?check=skin7" -o /tmp/hf-live-paladin.html &&
+               grep -F 'FORJA NATIVA PALADÍN' /tmp/hf-live-paladin.html >/dev/null; then break; fi
+            sleep 5
+          done
+          grep -F 'FORJA NATIVA PALADÍN' /tmp/hf-live-paladin.html >/dev/null
+          for file in paladin-lab.mjs assets/warrior_modular.glb assets/PALADIN-HIGHFLY-SOURCE-REFORGE-11-PARTS.glb; do
+            curl -fsSL --max-time 30 -o /dev/null "${BASE}paladin-lab/${file}"
+          done
+          echo HIGHFLY_SKIN7_REAL_3_PALADIN_LAB_LIVE_PAGES_GREEN=1
+          echo "SKIN7_FOUR_STATION_LAB_LIVE_URL=${BASE}paladin-lab/"
 
 
 
