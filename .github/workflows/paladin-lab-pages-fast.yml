@@ -1,0 +1,168 @@
+name: HIGHFLY SKIN 7 - FAST FOUR STATION PALADIN LAB (ISOLATED PAGES)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paladin-lab-pages-fast.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-paladin-fast-deploy
+  cancel-in-progress: false
+jobs:
+  paladin-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore PREVIOUSLY GREEN V10-V20 independent site byte-for-byte, not rebuild legacy
+        uses: actions/download-artifact@v4
+        with:
+          name: HIGHFLY-V10-THROUGH-V20-INDEPENDENT-PAGES
+          run-id: 38018893463
+          github-token: ${{ github.token }}
+          path: highfly-skinfactory-v10-preview
+      - name: Pin latest source-verified ClaudeCraft Paladin forger, three-actor browser and 4th user commission
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 713833237c60d2c2c6437e9e3b4a62ffecdf36e4
+          path: pinned-paladin-lab
+          sparse-checkout: |
+            character-truth/skin7-paladin-compare-lab
+            character-truth/skin7-paladin-first-reforge.py
+            character-truth/skin7-paladin-forja-sagrada-recipe.json
+            character-truth/integration-modules/prepare-native-body.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install only required native GLB decoding and chromium test tools
+        shell: bash
+        run: |
+          npm install --no-save --package-lock=false @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions meshoptimizer@0.23.0 playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Download exact original KayKit/ClaudeCraft source once and validate immutable blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p character-truth/paladin-fast/native highfly-skinfactory-v10-preview/paladin-lab/assets
+          curl -fsSL --retry 4 --connect-timeout 15 --max-time 180 \
+           'https://raw.githubusercontent.com/levy-street/world-of-claudecraft/9b57e49c9676d75962700f828cc00a50a9a988b5/public/models/chars/modular/warrior_modular.glb' \
+           -o highfly-skinfactory-v10-preview/paladin-lab/assets/warrior_modular.glb
+          test "$(git hash-object highfly-skinfactory-v10-preview/paladin-lab/assets/warrior_modular.glb)" = 'e3fb52b8e064ab3927f3bc34a5ba7d04e8d701c2'
+          node pinned-paladin-lab/character-truth/integration-modules/prepare-native-body.mjs \
+           highfly-skinfactory-v10-preview/paladin-lab/assets/warrior_modular.glb \
+           character-truth/paladin-fast/native/source-decoded.glb
+          test -s character-truth/paladin-fast/native/source-decoded.glb
+      - name: Install verified Blender 4.2.23 LTS for ACTUAL Paladin source geometry editing
+        shell: bash
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          VERSION=4.2.23
+          NAME="blender-${VERSION}-linux-x64.tar.xz"
+          ROOT="https://download.blender.org/release/Blender4.2"
+          mkdir -p "$RUNNER_TEMP/hf-skin7-blender" "$RUNNER_TEMP/hf-skin7-down"
+          cd "$RUNNER_TEMP/hf-skin7-down"
+          curl -fsSL --retry 3 --max-time 390 "$ROOT/$NAME" -o "$NAME"
+          curl -fsSL --retry 3 --max-time 45 "$ROOT/blender-${VERSION}.sha256" -o SHA256SUMS
+          grep -F "$NAME" SHA256SUMS | head -1 | sha256sum --check
+          tar -xJf "$NAME" --strip-components=1 -C "$RUNNER_TEMP/hf-skin7-blender"
+          echo "$RUNNER_TEMP/hf-skin7-blender" >> "$GITHUB_PATH"
+      - name: Build FOUR-station lab only, preserve original V10-V20 roots bit-for-bit
+        shell: bash
+        timeout-minutes: 7
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-paladin-lab rev-parse HEAD)" = '713833237c60d2c2c6437e9e3b4a62ffecdf36e4'
+          ROOT=highfly-skinfactory-v10-preview
+          test -s "$ROOT/v20/index.html"
+          test -s "$ROOT/v20/vendor/three/build/three.module.js"
+          test -s "$ROOT/v20/vendor/meshopt_decoder.module.js"
+          cp pinned-paladin-lab/character-truth/skin7-paladin-compare-lab/index.html "$ROOT/paladin-lab/"
+          cp pinned-paladin-lab/character-truth/skin7-paladin-compare-lab/paladin-lab.mjs "$ROOT/paladin-lab/"
+          node --check "$ROOT/paladin-lab/paladin-lab.mjs"
+          python3 -m py_compile pinned-paladin-lab/character-truth/skin7-paladin-first-reforge.py
+          blender --background --factory-startup --python-exit-code 99 \
+           --python pinned-paladin-lab/character-truth/skin7-paladin-first-reforge.py -- \
+           --source character-truth/paladin-fast/native/source-decoded.glb \
+           --recipe pinned-paladin-lab/character-truth/skin7-paladin-forja-sagrada-recipe.json \
+           --baseline character-truth/paladin-fast/native/PALADIN-ORIGINAL-11-PARTS.glb \
+           --reforge "$ROOT/paladin-lab/assets/PALADIN-HIGHFLY-SOURCE-REFORGE-11-PARTS.glb" \
+           --report character-truth/paladin-fast/native/reforge.json \
+           | tee /tmp/skin7-fast-reforge.log
+          grep -F 'SKIN7_REAL_CLAUDECRAFT_PALADIN_11_MESHES_REFORGED_FROM_NATIVE_SOURCE_GREEN=1' /tmp/skin7-fast-reforge.log
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('highfly-skinfactory-v10-preview')
+          r=json.loads(Path('character-truth/paladin-fast/native/reforge.json').read_text())
+          assert r['reforgedMeshes']==11 and r['nativeJoints']==23 and r['recipeDrivenGeometry']
+          assert (p/'paladin-lab/assets/PALADIN-HIGHFLY-SOURCE-REFORGE-11-PARTS.glb').stat().st_size>200000
+          assert (p/'paladin-lab/assets/warrior_modular.glb').stat().st_size==3477500
+          assert all((p/d/'index.html').is_file() for d in ['v12','v13-1','v14','v14-1','v15','v16','v17','v18','v19','v20'])
+          print('HIGHFLY_SKIN7_REUSABLE_V10_V20_ASSETS_AND_NATIVE_PALADIN_ONLY_GREEN=1')
+          PY
+          cat > "$ROOT/paladin-lab/NOTICE.txt" <<'TXT'
+          HIGHFLY SKIN7 PALADIN LAB / private artist review on independent Pages.
+          THREE independent original ClaudeCraft Rig_Medium skeletons, 22 animation clips.
+          1 Bare original Hunter, 2 Native Paladin, 3 Source-reforged Paladin, 4 user commission
+          form and authentic GLB import. Text/image NOT automatically creating arbitrary
+          meshes at runtime. Combat physics and physical S23 hardware not certified.
+          No deployment to public HIGHFLY gameplay; original V10-V20 unchanged.
+          TXT
+      - name: Real three native independent animated Hunters - S23 browser safety gate
+        shell: bash
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4278 --bind 127.0.0.1 \
+            --directory highfly-skinfactory-v10-preview >/tmp/hf-paladin-fast-http.log 2>&1 &
+          sleep 2
+          HF_PALADIN_LAB_URL=http://127.0.0.1:4278/paladin-lab/ \
+           HF_PALADIN_PROOF=character-truth/paladin-fast/browser \
+           node pinned-paladin-lab/character-truth/skin7-paladin-compare-lab/browser-qa.cjs
+          grep -F '"green": true' character-truth/paladin-fast/browser/gate.json
+          echo HIGHFLY_SKIN7_REAL_3_ACTORS_22_ANIMATIONS_AND_4TH_COMMISSION_QA_GREEN=1
+      - name: Upload test screenshots and startup diagnostic even when QA fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-SKIN7-PALADIN-FAST-LAB-BROWSER-QA-EVIDENCE
+          path: character-truth/paladin-fast/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Upload only verified independent Pages candidate
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: highfly-skinfactory-v10-preview/
+  deploy:
+    needs: paladin-lab
+    runs-on: ubuntu-latest
+    environment: {name: github-pages}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Publish only independent skin studio, no gameplay
+        uses: actions/deploy-pages@v4
+      - name: Prove real live paladin lab AND preserved old V20
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://drakentzy07.github.io/HIGHFLY-SKIN3-LAB-Copiar/'
+          for i in {1..24}; do
+            if curl -fsSL --max-time 20 "${BASE}paladin-lab/?live=1" -o /tmp/skin7-paladin-live.html &&
+               grep -F 'FORJA NATIVA PALADÍN' /tmp/skin7-paladin-live.html >/dev/null; then break; fi
+            sleep 5
+          done
+          grep -F 'FORJA NATIVA PALADÍN' /tmp/skin7-paladin-live.html >/dev/null
+          for f in paladin-lab.mjs assets/warrior_modular.glb assets/PALADIN-HIGHFLY-SOURCE-REFORGE-11-PARTS.glb; do
+            curl -fsSL --retry 3 --max-time 30 -o /dev/null "${BASE}paladin-lab/${f}"
+          done
+          curl -fsSL --max-time 30 "${BASE}v20/" -o /tmp/skin7-preserved-v20.html
+          grep -F 'supreme-v20-ui.mjs' /tmp/skin7-preserved-v20.html
+          echo HIGHFLY_SKIN7_4_STATION_REAL_HUNTER_PALADIN_LIVE_GREEN=1
+          echo "LIVE_URL=${BASE}paladin-lab/"
