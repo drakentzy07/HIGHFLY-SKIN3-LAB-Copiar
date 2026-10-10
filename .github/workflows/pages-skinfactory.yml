@@ -1,4 +1,4 @@
-name: HIGHFLY SKIN STUDIO V10–V19 - Independent Pages
+name: HIGHFLY SKIN STUDIO V10–V20 - Independent Pages
 on:
   push:
     branches: [main]
@@ -654,6 +654,72 @@ jobs:
           print('HIGHFLY_V19_BLENDER_AUTHORED_PREVIEW_AND_NINE_OLD_ROUTES_BYTE_IDENTICAL_GREEN=1')
           PY
 
+      - name: Checkout EXACT pinned V20 GREEN genuine original Hunter armor recipe
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 93ed92935147ec2de07b4942a78aaf3ea06ca99d
+          path: pinned-supreme-v20-green
+          sparse-checkout: |
+            character-truth/integration-modules
+
+      - name: Build V20 guided image-text real GLB studio, verify older TEN paths byte-identical
+        shell: bash
+        timeout-minutes: 9
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-supreme-v20-green rev-parse HEAD)" = '93ed92935147ec2de07b4942a78aaf3ea06ca99d'
+          for file in supreme-recipe-v20.mjs supreme-v20-ui.mjs supreme-v20.test.mjs \
+            supreme-v20-browser-gate.cjs package-supreme-v20.mjs; do
+            cp "pinned-supreme-v20-green/character-truth/integration-modules/$file" \
+              "character-truth/integration-modules/$file"
+          done
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          base=pathlib.Path('highfly-skinfactory-v10-preview')
+          roots=['index.html','v12/index.html','v13-1/index.html','v14/index.html',
+                 'v14-1/index.html','v15/index.html','v16/index.html','v17/index.html',
+                 'v18/index.html','v19/index.html']
+          before={name:hashlib.sha256((base/name).read_bytes()).hexdigest() for name in roots}
+          pathlib.Path('/tmp/hf-v20-older-ten-hashes.json').write_text(json.dumps(before))
+          assert len(before)==10
+          PY
+          mkdir -p character-truth/v19-green-package
+          cp -a highfly-legendary-v19-preview/. character-truth/v19-green-package/
+          node character-truth/integration-modules/supreme-v20.test.mjs
+          node character-truth/integration-modules/package-supreme-v20.mjs
+          python3 -m http.server 4200 --bind 127.0.0.1 \
+            --directory highfly-supreme-v20-preview >/tmp/hf-v20-pages-test.log 2>&1 &
+          sleep 2
+          node character-truth/integration-modules/supreme-v20-browser-gate.cjs
+          grep -F '"green": true' character-truth/v20-evidence/browser-proof.json
+          mkdir -p highfly-skinfactory-v10-preview/v20
+          cp -a highfly-supreme-v20-preview/. highfly-skinfactory-v10-preview/v20/
+          python3 - <<'PY'
+          import pathlib,hashlib,json
+          root=pathlib.Path('highfly-skinfactory-v10-preview')
+          before=json.loads(pathlib.Path('/tmp/hf-v20-older-ten-hashes.json').read_text())
+          after={name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in before}
+          assert before==after,'V20_CHANGED_PRIOR_V10_THROUGH_V19_PREVIEWS'
+          v20=root/'v20'
+          h=(v20/'index.html').read_text()
+          assert 'supreme-v20-ui.mjs' in h and 'legendary-forge-v19.mjs' in h
+          for n in ['supreme-recipe-v20.mjs','supreme-v20-ui.mjs',
+                    'assets/HIGHFLY-V19-LEGENDARY-COMBINED.glb']:
+           assert (v20/n).stat().st_size>1000
+          assert not (v20/'assets/warrior_modular.glb').exists()
+          print('HIGHFLY_V20_LIVE_CANDIDATE_AND_TEN_PRIOR_ROUTES_SHA256_UNCHANGED_GREEN=1')
+          PY
+
+      - name: Archive V20 original real skinned Hunter and browser fitting evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-V20-SUPREME-INDEPENDENT-PAGES-REAL-HUNTER-QA
+          path: character-truth/v20-evidence/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Archive V19 genuine Blender geometry and source-rig visual tests
         if: always()
         uses: actions/upload-artifact@v4
@@ -712,7 +778,7 @@ jobs:
       - name: Archive standalone deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: HIGHFLY-V10-THROUGH-V19-INDEPENDENT-PAGES
+          name: HIGHFLY-V10-THROUGH-V20-INDEPENDENT-PAGES
           path: highfly-skinfactory-v10-preview/
           retention-days: 30
 
@@ -883,6 +949,23 @@ jobs:
           done
           echo HIGHFLY_V19_NEW_GEOMETRY_AND_NINE_OLDER_PAGES_LIVE_GREEN=1
           echo "LEGENDARY_V19_PUBLIC_URL=${BASE}v19/"
+
+          # V20 new isolated preview must be reachable after real Pages deploy.
+          for attempt in {1..18}; do
+            if curl -fsSL --max-time 25 "${BASE}v20/?supreme=20" -o /tmp/hf-live-v20.html &&
+               grep -F 'supreme-v20-ui.mjs' /tmp/hf-live-v20.html >/dev/null; then
+              break
+            fi
+            sleep 5
+          done
+          grep -F 'supreme-v20-ui.mjs' /tmp/hf-live-v20.html >/dev/null
+          for file in supreme-recipe-v20.mjs supreme-v20-ui.mjs \
+            assets/HIGHFLY-V19-LEGENDARY-COMBINED.glb; do
+            curl -fsSL --retry 3 --max-time 35 -o /dev/null "${BASE}v20/${file}"
+          done
+          echo HIGHFLY_V20_AND_ALL_TEN_OLDER_INDEPENDENT_PAGES_LIVE_GREEN=1
+          echo "SUPREME_V20_PUBLIC_URL=${BASE}v20/"
+
 
 
 
