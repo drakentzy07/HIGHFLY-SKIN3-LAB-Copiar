@@ -30,7 +30,7 @@ jobs:
           python3 - <<'PY'
           import json
           r=json.load(open('/tmp/skin85-art-run.json'))
-          assert r['status']=='completed' and r['conclusion']=='success','SKIN85_TRUE_REPLACEMENT_CI_NOT_GREEN'
+          assert r['status']=='completed' and r['conclusion']=='success','SKIN85_NATIVE_SURFACE_CONFORM_CI_NOT_GREEN'
           assert r['head_sha']=='635e186637fe65b32f67885248c818a0b3f53b36','PINNED_ART_SOURCE_CHANGED'
           print('HIGHFLY_SKIN85_FIVE_REFERENCE_EXACT_RUN_GREEN=1')
           PY
@@ -75,9 +75,9 @@ jobs:
           cp pinned-skin85/skin7-auto-fit/*.mjs independent-site/skin85/skin7-auto-fit/
           cat > independent-site/skin85/index.html <<'HTML'
           <!doctype html><html lang="es"><meta charset="utf-8">
-          <title>HIGHFLY SKIN 8.5.1 — Native Surface Conform</title>
+          <title>HIGHFLY SKIN 8.5 — Native Surface Conform</title>
           <meta http-equiv="refresh" content="0;url=./repertoire/">
-          <a href="./repertoire/">Abrir Skin 8.4.1 · cinco armaduras de reemplazo</a></html>
+          <a href="./repertoire/">Abrir SKIN 8.5 · cinco armaduras conformadas a superficie</a></html>
           HTML
           cat > independent-site/skin85/NOTICE.txt <<'NOTICE'
           Experimental TRUE REPLACEMENT 3D reinterpretations of five user-submitted four-view images.
