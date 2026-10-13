@@ -62,8 +62,11 @@ let view='head',direction='front';
 function isCore(name,gender){return name.startsWith(gender+'_')&&CORE.has(name.slice(2).replace(/_[0-9]+$/,''));}
 function frameCamera(panel){
  const focus=panel.head.getWorldPosition(new THREE.Vector3());
- if(view==='body'){focus.y-=panel.height*.34;}
- const dist=panel.height*(view==='head'?.88:2.2);
+ // The native head joint is inside the neck; aim ABOVE the bone and use a real
+ // helmet-scale distance, or the lower face fills the viewport and crown is cut.
+ if(view==='head'){focus.y+=panel.height*.18;}
+ else{focus.y-=panel.height*.29;}
+ const dist=panel.height*(view==='head'?2.05:3.00);
  const vector=direction==='side'?[1,0,0]:direction==='back'?[0,0,-1]:[0,0,1];
  panel.controls.target.copy(focus);
  panel.camera.position.copy(focus).addScaledVector(new THREE.Vector3(...vector),dist).add(new THREE.Vector3(0,panel.height*.055,0));
