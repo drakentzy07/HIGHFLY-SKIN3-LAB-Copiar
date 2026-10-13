@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0d1422"><title>HIGHFLY · SKIN 7.1 · KayKit Integrado</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0c121d;color:#edf2ff;font:14px system-ui,sans-serif}
+header{padding:13px clamp(12px,3vw,30px);border-bottom:1px solid #354967;background:#141e30}
+h1{font-size:clamp(17px,2.5vw,26px);margin:0;color:#eed69e}header p{color:#afc0db;margin:4px 0;font-size:12px}
+main{max-width:1550px;margin:auto;padding:12px}
+.toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 10px;padding:9px;background:#172238;border:1px solid #405270;border-radius:10px}
+button,select{font:inherit;color:#eaf0fb;background:#253753;border:1px solid #6580a1;padding:9px 12px;border-radius:8px;cursor:pointer}
+button:focus-visible,select:focus-visible{outline:2px solid #d6b773}
+button:hover{background:#385171}button[aria-pressed=true]{border-color:#ffe9a5;background:#6b502a}
+label{color:#b8c9e3;display:flex;gap:5px;align-items:center}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.panel{min-width:0;border:1px solid #435b7a;background:#111c2c;border-radius:12px;overflow:hidden}
+h2{margin:0;padding:10px 12px;font-size:15px;display:flex;align-items:center;justify-content:space-between}
+h2 span{font-size:11px;color:#afc0db;font-weight:400}
+.viewport{height:min(65vh,620px);min-height:300px;background:radial-gradient(ellipse at 50% 35%,#2c3952,#0e1929 70%);touch-action:none}
+.viewport canvas{display:block;width:100%;height:100%}
+.note{padding:9px 11px;font-size:12px;color:#acbfda}
+#status{padding:10px 12px;background:#1b2b44;border:1px solid #455c7e;border-radius:9px;margin:12px 0;color:#f4ddae;white-space:pre-wrap}
+footer{color:#afbad2;font-size:12px;padding:10px}
+a{color:#9bd9ff}
+@media(max-width:700px){main{padding:6px}.compare{gap:6px}h2{font-size:12px;padding:8px}.viewport{height:53vh;min-height:180px} .note{font-size:10px;padding:6px}button,select{padding:7px 9px}.toolbar{padding:6px;gap:5px}}
+</style>
+<script type="importmap">{"imports":{"three":"../v20/vendor/three/build/three.module.js","three/addons/":"../v20/vendor/three/examples/jsm/"}}</script>
+</head><body><header><h1>⚔ HIGHFLY · SKIN 7.1 — FORJA INTEGRADA</h1>
+<p>Original ClaudeCraft vs casco reformado sobre la malla nativa: visor V, sienes y nuca integradas · Rig_Medium · laboratorio independiente</p></header>
+<main>
+<div class="toolbar">
+<label>Animación <select id="clip"><option>Idle</option></select></label>
+<label>Cuerpo <select id="gender"><option value="M">Hunter masculino</option><option value="F">Hunter femenino</option></select></label>
+<button id="play" aria-pressed="true">⏸ Pausar</button>
+<button id="front">Frente</button><button id="side">Perfil</button><button id="back">Espalda</button>
+<button id="head" aria-pressed="true">Primer plano casco</button><button id="body">Cuerpo completo</button>
+<button id="reset">Reiniciar cámara</button>
+</div>
+<div class="compare">
+<section class="panel"><h2>PALADÍN ORIGINAL <span>ClaudeCraft · nativo</span></h2><div class="viewport" id="left"></div>
+<div class="note" id="leftinfo">Cargando…</div></section>
+<section class="panel"><h2>PALADIN INTEGRADO 7.1 <span>0 submallas agregadas</span></h2><div class="viewport" id="right"></div>
+<div class="note" id="rightinfo">Cargando…</div></section>
+</div>
+<div id="status" role="status" aria-live="polite">Cargando los GLB originales y sus 22 clips…</div>
+<footer>Arrastrá para rotar y usá la rueda o el gesto de pellizcar para acercar. Modelo nativo, no render ficticio. SKIN 7.1 esta pendiente de aprobacion artistica. El diseño es experimental: se requiere revisión de encastre/clipping y prueba física Samsung S23 Ultra antes de aprobarlo. No modifica ni publica la app HIGHFLY.</footer>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
+import {MeshoptDecoder} from '../v20/vendor/meshopt_decoder.module.js';
+const $=id=>document.getElementById(id);
+const evidence={ready:false,error:null,models:[],view:'head',clip:'Idle',gender:'M',renderFrames:0};
+window.__HF_SKIN71_NATIVE__=evidence;
+const panels=[];
+const sourceNodes={original:'Armor_paladin_Head',variant:'HIGHFLY_SKIN71_PALADIN_INTEGRATED_HEAD'};
+const CORE=new Set(['Head','Torso','ArmL','ArmR','HandL','HandR','LegL','LegR','FootL','FootR','Loin','Top','Eye_almond','Brow_soft','Ear_round','Mouth_neutral']);
+let playing=true;
+const clock=new THREE.Clock();
+let view='head',direction='front';
+function isCore(name,gender){return name.startsWith(gender+'_')&&CORE.has(name.slice(2).replace(/_[0-9]+$/,''));}
+function frameCamera(panel){
+ const focus=panel.head.getWorldPosition(new THREE.Vector3());
+ if(view==='body'){focus.y-=panel.height*.34;}
+ const dist=panel.height*(view==='head'?.88:2.2);
+ const vector=direction==='side'?[1,0,0]:direction==='back'?[0,0,-1]:[0,0,1];
+ panel.controls.target.copy(focus);
+ panel.camera.position.copy(focus).addScaledVector(new THREE.Vector3(...vector),dist).add(new THREE.Vector3(0,panel.height*.055,0));
+ panel.controls.update();
+}
+async function makePanel(name,url,kind){
+ const host=$(name),scene=new THREE.Scene();scene.background=new THREE.Color('#162338');
+ scene.add(new THREE.HemisphereLight(0xdfefff,0x48516b,2.5));
+ const key=new THREE.DirectionalLight(0xffe2af,3.2);key.position.set(3,5,5);scene.add(key);
+ const fill=new THREE.DirectionalLight(0x79baff,1.65);fill.position.set(-4,2,-5);scene.add(fill);
+ const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance',preserveDrawingBuffer:true});
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+ renderer.outputColorSpace=THREE.SRGBColorSpace;
+ renderer.toneMapping=THREE.ACESFilmicToneMapping;
+ renderer.toneMappingExposure=1.25;
+ host.append(renderer.domElement);
+ const camera=new THREE.PerspectiveCamera(35,1,.03,100);
+ const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
+ controls.minDistance=.38;controls.maxDistance=14;controls.maxPolarAngle=Math.PI*.9;
+ const loader=new GLTFLoader();loader.setMeshoptDecoder(MeshoptDecoder);
+ const ktx=new KTX2Loader().setTranscoderPath('../v20/vendor/three/examples/jsm/libs/basis/').detectSupport(renderer);
+ loader.setKTX2Loader(ktx);
+ const gltf=await loader.loadAsync(url);
+ const actor=gltf.scene;scene.add(actor);
+ function applyGender(g){
+  actor.traverse(o=>{if(!o.isMesh)return;
+   let matched=false;
+   for(let n=o;n;n=n.parent){if(n.name?.startsWith(sourceNodes[kind])){matched=true;break;}}
+   o.visible=matched||isCore(o.name,g);o.frustumCulled=false;
+  });
+ }
+ applyGender(evidence.gender);
+ const bones=[];actor.traverse(o=>{if(o.isBone)bones.push(o)});
+ const get=n=>bones.find(b=>(b.name||'').toLowerCase().replace(/[^a-z0-9]/g,'')===n);
+ const head=get('head'),foot=get('footl');
+ if(!head||!foot)throw Error('Rig_Medium sin huesos head/footl');
+ actor.updateMatrixWorld(true);
+ const height=Math.max(.8,head.getWorldPosition(new THREE.Vector3()).distanceTo(foot.getWorldPosition(new THREE.Vector3()))*1.5);
+ const clipNames=gltf.animations.map(x=>x.name);if(clipNames.length!==22)throw Error('No hay 22 clips originales');
+ const helmetMeshes=[];actor.traverse(o=>{if(!o.isSkinnedMesh)return;for(let p=o;p;p=p.parent){if(p.name.startsWith(sourceNodes[kind])){helmetMeshes.push(o);break;}}});
+ if(helmetMeshes.length<2||helmetMeshes.some(m=>m.skeleton.bones.length!==23))
+  throw Error('Mallas casco skinned no compatibles: '+helmetMeshes.length);
+ const mixer=new THREE.AnimationMixer(actor);
+ const panel={kind,host,scene,renderer,camera,controls,gltf,actor,head,foot,height,mixer,helmetMeshes,applyGender,clipNames};
+ panels.push(panel);frameCamera(panel);
+ evidence.models.push({kind,helmetMeshes:helmetMeshes.length,joints:23,animations:clipNames.length,geometry:kind==='variant'?'real integrated reshaped native visor/temple/chin — NO added mesh':'original ClaudeCraft'});
+ $(name+'info').textContent=helmetMeshes.length+' mallas renderizables de casco · 23 huesos · 22 movimientos';
+ return panel;
+}
+function setClip(name){
+ evidence.clip=name;
+ for(const p of panels){const c=p.gltf.animations.find(x=>x.name===name);if(!c)throw Error('Clip no presente: '+name);
+  p.mixer.stopAllAction();p.mixer.clipAction(c).reset().play();}
+}
+function resize(p){const w=Math.max(100,p.host.clientWidth),h=Math.max(100,p.host.clientHeight);
+ const dw=Math.round(w*p.renderer.getPixelRatio()),dh=Math.round(h*p.renderer.getPixelRatio());
+ if(p.renderer.domElement.width!==dw||p.renderer.domElement.height!==dh){
+  p.renderer.setSize(w,h,false);p.camera.aspect=w/h;p.camera.updateProjectionMatrix();
+ }}
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.07);
+ for(const p of panels){if(playing)p.mixer.update(dt);resize(p);p.controls.update();p.renderer.render(p.scene,p.camera);}
+ if(evidence.ready)evidence.renderFrames++;
+}
+animate();
+function cameraBoth(dir,scale){direction=dir;view=scale;evidence.view=view;for(const p of panels)frameCamera(p);
+ $('head').setAttribute('aria-pressed',String(view==='head'));
+ $('body').setAttribute('aria-pressed',String(view==='body'));
+}
+for(const k of ['front','side','back'])$(k).onclick=()=>cameraBoth(k,view);
+$('head').onclick=()=>cameraBoth(direction,'head');
+$('body').onclick=()=>cameraBoth(direction,'body');
+$('reset').onclick=()=>cameraBoth('front','head');
+$('gender').onchange=e=>{evidence.gender=e.target.value;for(const p of panels)p.applyGender(evidence.gender);};
+$('clip').onchange=e=>setClip(e.target.value);
+$('play').onclick=()=>{playing=!playing;$('play').setAttribute('aria-pressed',String(playing));$('play').textContent=playing?'⏸ Pausar':'▶ Reproducir';};
+(async()=>{try{
+ await MeshoptDecoder.ready;
+ await makePanel('left','./assets/warrior_modular.glb','original');
+ await makePanel('right','./assets/HIGHFLY-SKIN71-PALADIN-INTEGRATED-NATIVE.glb','variant');
+ const clips=panels[0].clipNames;
+ if(clips.join('|')!==panels[1].clipNames.join('|'))throw Error('Animaciones distintas entre versiones');
+ $('clip').replaceChildren(...clips.map(n=>{const o=document.createElement('option');o.value=n;o.textContent=n.replaceAll('_',' ');return o;}));
+ setClip(clips.includes('Idle')?'Idle':clips[0]);
+ evidence.ready=true;
+ $('status').textContent='✅ Comparación nativa cargada: Paladin original vs casco HIGHFLY con 0 primitivas extras: geometria nativa integrada. Mové la cámara y probá las animaciones.';
+}catch(e){evidence.error=String(e.stack||e);$('status').textContent='❌ '+evidence.error;console.error(e);}})();
+</script></body></html>
