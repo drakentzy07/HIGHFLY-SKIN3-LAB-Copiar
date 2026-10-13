@@ -235,6 +235,58 @@ jobs:
             character-truth/skin71-evidence/integrated-helmet-proof.json
           retention-days: 30
           if-no-files-found: warn
+      - name: Pin SKIN7.2 first actual new Dragon Helm source for original KayKit head slot
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 1c60e7728789d5da73bb9956336157d93c9acd5f
+          path: pinned-skin72-dragon
+          sparse-checkout: |
+            character-truth/integration-modules/skin72-dragon-helmet-forge.mjs
+            character-truth/integration-modules/skin72-dragon-helmet-recipe.json
+      - name: Forge REAL original dragon skull helmet and stage independent Native V4 lab
+        shell: bash
+        timeout-minutes: 4
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-skin72-dragon rev-parse HEAD)" = 1c60e7728789d5da73bb9956336157d93c9acd5f
+          ROOT=highfly-skinfactory-v10-preview
+          test -s "$ROOT/paladin-lab/index.html"
+          test -s "$ROOT/native-v2/index.html"
+          test -s "$ROOT/native-v3/index.html"
+          test -s "$ROOT/v20/index.html"
+          test "$(git hash-object public/models/chars/modular/warrior_modular.glb)" = e3fb52b8e064ab3927f3bc34a5ba7d04e8d701c2
+          mkdir -p character-truth/skin72-evidence "$ROOT/native-v4/assets"
+          cp pinned-skin72-dragon/character-truth/integration-modules/skin72-*.mjs character-truth/integration-modules/
+          cp pinned-skin72-dragon/character-truth/integration-modules/skin72-*.json character-truth/integration-modules/
+          node --check character-truth/integration-modules/skin72-dragon-helmet-forge.mjs
+          node character-truth/integration-modules/skin72-dragon-helmet-forge.mjs
+          node --input-type=module -e "import fs from 'node:fs';import assert from 'node:assert/strict';const r=JSON.parse(fs.readFileSync('character-truth/skin72-evidence/dragon-helmet-proof.json'));assert(r.newGeometry&&r.originalHelmetReplacedNotStacked&&r.newTriangles===352&&r.originalNativeBones===23&&r.originalAnimations===22&&r.sourceFileUnchanged&&!r.artApproved);console.log('SKIN72_NATIVE_DRAGON_NEW_GEOMETRY_ISOLATED_PAGES_GATE_GREEN=1')"
+          cp native-v4/index.html "$ROOT/native-v4/index.html"
+          cp public/models/chars/modular/warrior_modular.glb "$ROOT/native-v4/assets/warrior_modular.glb"
+          cp character-truth/skin72-evidence/HIGHFLY-SKIN72-DRAGON-HELM-ORIGINAL.glb "$ROOT/native-v4/assets/"
+          test -s "$ROOT/native-v4/assets/HIGHFLY-SKIN72-DRAGON-HELM-ORIGINAL.glb"
+          echo SKIN72_NATIVE_DRAGON_COMPATIBLE_ORIGINAL_HELMET_STAGE_GREEN=1
+      - name: Browser QA original vs Dragon Helm with animations PC and Samsung S23 landscape emulation
+        shell: bash
+        timeout-minutes: 7
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4282 --bind 127.0.0.1 --directory highfly-skinfactory-v10-preview >/tmp/skin72-pages.log 2>&1 &
+          sleep 2
+          HF_NATIVE_V2_URL=http://127.0.0.1:4282/native-v4/ HF_NATIVE_V2_PROOF=character-truth/native-v4-qa node native-v4/browser-qa.cjs
+          grep -q '"green": true' character-truth/native-v4-qa/native-v4-gate.json
+          echo SKIN72_DRAGON_ORIGINAL_GLB_PC_S23_BROWSER_QA_GREEN=1
+      - name: Keep visual evidence of Dragon Helm original 3D for artist inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-SKIN72-DRAGON-ORIGINAL-GEOMETRY-PAGES-QA
+          path: |
+            character-truth/native-v4-qa/
+            character-truth/skin72-evidence/dragon-helmet-proof.json
+          retention-days: 30
+          if-no-files-found: warn
       - name: Upload test screenshots and startup diagnostic even when QA fails
         if: always()
         uses: actions/upload-artifact@v4
@@ -281,6 +333,12 @@ jobs:
           for f in assets/warrior_modular.glb assets/HIGHFLY-SKIN71-PALADIN-INTEGRATED-NATIVE.glb; do
             curl -fsSL --retry 3 --max-time 45 -o /dev/null "${BASE}native-v3/${f}"
           done
+          curl -fsSL --retry 3 --max-time 30 "${BASE}native-v4/" -o /tmp/hf-skin72-native-live.html
+          grep -F 'DRAGON HELM' /tmp/hf-skin72-native-live.html
+          for f in assets/warrior_modular.glb assets/HIGHFLY-SKIN72-DRAGON-HELM-ORIGINAL.glb; do
+            curl -fsSL --retry 3 --max-time 45 -o /dev/null "${BASE}native-v4/${f}"
+          done
+          echo SKIN72_DRAGON_NEW_KAYKIT_SLOT_LIVE_GREEN=1
           echo SKIN71_NATIVE_KAYKIT_INTEGRATED_LIVE_GREEN=1
           echo HIGHFLY_SKIN7_NATIVE_3D_TEXT_GEOMETRY_LIVE_GREEN=1
           echo HIGHFLY_SKIN7_4_STATION_REAL_HUNTER_PALADIN_LIVE_GREEN=1
