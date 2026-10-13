@@ -75,9 +75,9 @@ jobs:
           cp pinned-skin84/skin7-auto-fit/*.mjs independent-site/skin84/skin7-auto-fit/
           cat > independent-site/skin84/index.html <<'HTML'
           <!doctype html><html lang="es"><meta charset="utf-8">
-          <title>HIGHFLY SKIN 8.4 — True Armor Replacement</title>
+          <title>HIGHFLY SKIN 8.4.1 — True Armor Replacement</title>
           <meta http-equiv="refresh" content="0;url=./repertoire/">
-          <a href="./repertoire/">Abrir Skin 8.3 · cinco armaduras de referencia</a></html>
+          <a href="./repertoire/">Abrir Skin 8.4.1 · cinco armaduras de reemplazo</a></html>
           HTML
           cat > independent-site/skin84/NOTICE.txt <<'NOTICE'
           Experimental TRUE REPLACEMENT 3D reinterpretations of five user-submitted four-view images.
@@ -89,6 +89,7 @@ jobs:
           This deployment NEVER touches the separate HIGHFLY gameplay Pages repo.
           NOTICE
           node --check independent-site/skin84/repertoire/reference_fusion_83.mjs
+          node --check independent-site/skin84/repertoire/native_reforge_841.mjs
           node --check independent-site/skin84/repertoire/armor_style_dna_factory.mjs
           sha256sum -c /tmp/highfly-skin84-old-files.sha256 > /tmp/skin84-old-hashes.log
           echo HIGHFLY_SKIN84_OLD_PAGES_BYTES_PRESERVED=1
@@ -98,7 +99,7 @@ jobs:
           set -euo pipefail
           python3 -m http.server 4743 --bind 127.0.0.1 --directory independent-site >/tmp/highfly-skin84-http.log 2>&1 &
           sleep 2
-          curl -fsS http://127.0.0.1:4743/skin84/ | grep -F 'Reference Armor Fusion'
+          curl -fsS http://127.0.0.1:4743/skin84/ | grep -F 'True Armor Replacement'
           curl -fsS http://127.0.0.1:4743/skin84/repertoire/ | grep -F 'SKIN 8.4'
           curl -fsS http://127.0.0.1:4743/skin84/repertoire/reference_fusion_83.mjs | grep -F 'fuseReferenceArmors83'
           curl -fsS http://127.0.0.1:4743/skin84/skin7-auto-fit/native_armor_bridge.mjs | grep -F 'applyNativeArmorBridge'
