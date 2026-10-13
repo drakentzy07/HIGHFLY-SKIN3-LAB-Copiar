@@ -89,7 +89,7 @@ jobs:
           NOTE
           node --check independent-site/skin8/repertoire/art_fit_pass.mjs
           node --check independent-site/skin8/repertoire/armor_style_dna_factory.mjs
-          ( cd independent-site && sha256sum -c /tmp/skin8-published-originals.sha256 ) > /tmp/skin8-original-hashes.log
+          sha256sum -c /tmp/skin8-published-originals.sha256 > /tmp/skin8-original-hashes.log
           echo HIGHFLY_ALL_OLD_PAGES_FILES_BYTE_IDENTICAL=1
       - name: Verify actual static Pages routing (nested relative ESM imports)
         shell: bash
