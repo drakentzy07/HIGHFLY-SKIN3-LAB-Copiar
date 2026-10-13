@@ -184,6 +184,56 @@ jobs:
             character-truth/skin7-evidence/skin7-text-geometry-proof.json
           retention-days: 30
           if-no-files-found: warn
+      - name: Pin SKIN 7.1 GREEN original-topology integrated KayKit helmet source
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 6c691d89294eae4f7a20e9b2f9458d7cb5da26b2
+          path: pinned-skin71-native
+          sparse-checkout: |
+            character-truth/integration-modules/skin71-integrated-helmet-forge.mjs
+            character-truth/integration-modules/skin71-native-integrated-recipe.json
+      - name: Forge native integrated compact KayKit helmet with ZERO added mesh and preserve every lab
+        shell: bash
+        timeout-minutes: 4
+        run: |
+          set -euo pipefail
+          ROOT=highfly-skinfactory-v10-preview
+          test "$(git -C pinned-skin71-native rev-parse HEAD)" = 6c691d89294eae4f7a20e9b2f9458d7cb5da26b2
+          test -s "$ROOT/v20/index.html"
+          test -s "$ROOT/paladin-lab/index.html"
+          test -s "$ROOT/native-v2/index.html"
+          mkdir -p character-truth/skin71-evidence "$ROOT/native-v3/assets"
+          cp pinned-skin71-native/character-truth/integration-modules/skin71-* character-truth/integration-modules/
+          node character-truth/integration-modules/skin71-integrated-helmet-forge.mjs
+          node --input-type=module -e "import fs from 'node:fs';import assert from 'node:assert/strict';const p=JSON.parse(fs.readFileSync('character-truth/skin71-evidence/integrated-helmet-proof.json')); assert(p.noNewPrimitives&&p.noExternalAddOns&&p.nativeOriginalPrimitives===2&&p.variantNativePrimitives===2&&p.totalVerticesChanged>1000&&p.skeletonAndAnimationsUnchanged&&p.sourceFileUnchanged&&!p.artisticApproval); console.log('SKIN71_PAGES_NATIVE_NO_ADDED_GEOMETRY_GREEN=1')"
+          cp native-v3/index.html "$ROOT/native-v3/index.html"
+          cp public/models/chars/modular/warrior_modular.glb "$ROOT/native-v3/assets/warrior_modular.glb"
+          cp character-truth/skin71-evidence/HIGHFLY-SKIN71-PALADIN-INTEGRATED-NATIVE.glb "$ROOT/native-v3/assets/"
+          test -s "$ROOT/native-v3/assets/HIGHFLY-SKIN71-PALADIN-INTEGRATED-NATIVE.glb"
+          test -s "$ROOT/native-v2/assets/HIGHFLY-SKIN7-PALADIN-TEXT-DESIGN-REAL-GEOMETRY.glb"
+          echo SKIN71_KAYKIT_NATIVE_INTEGRATED_SEPARATE_PAGES_CANDIDATE_GREEN=1
+      - name: QA browser original and SKIN71 integrated helmet desktop and S23 horizontal
+        shell: bash
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4280 --bind 127.0.0.1 --directory highfly-skinfactory-v10-preview >/tmp/skin71-pages-browser.log 2>&1 &
+          sleep 2
+          HF_NATIVE_V2_URL=http://127.0.0.1:4280/native-v3/ HF_NATIVE_V2_PROOF=character-truth/native-v3-qa node native-v3/browser-qa.cjs
+          test -s character-truth/native-v3-qa/native-v3-gate.json
+          grep -q '"green": true' character-truth/native-v3-qa/native-v3-gate.json
+          echo SKIN71_KAYKIT_INTEGRATED_PAGES_PC_AND_MOBILE_SIM_GREEN=1
+      - name: Archive SKIN 7.1 integrated helmet and comparison PC/S23 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-SKIN71-KAYKIT-NATIVE-INTEGRATION-PAGES-QA
+          path: |
+            character-truth/native-v3-qa/
+            character-truth/skin71-evidence/integrated-helmet-proof.json
+          retention-days: 30
+          if-no-files-found: warn
       - name: Upload test screenshots and startup diagnostic even when QA fails
         if: always()
         uses: actions/upload-artifact@v4
@@ -225,6 +275,12 @@ jobs:
           for f in assets/warrior_modular.glb assets/HIGHFLY-SKIN7-PALADIN-TEXT-DESIGN-REAL-GEOMETRY.glb; do
             curl -fsSL --retry 3 --max-time 45 -o /dev/null "${BASE}native-v2/${f}"
           done
+          curl -fsSL --retry 3 --max-time 30 "${BASE}native-v3/" -o /tmp/hf-skin71-native-live.html
+          grep -F 'FORJA INTEGRADA' /tmp/hf-skin71-native-live.html
+          for f in assets/warrior_modular.glb assets/HIGHFLY-SKIN71-PALADIN-INTEGRATED-NATIVE.glb; do
+            curl -fsSL --retry 3 --max-time 45 -o /dev/null "${BASE}native-v3/${f}"
+          done
+          echo SKIN71_NATIVE_KAYKIT_INTEGRATED_LIVE_GREEN=1
           echo HIGHFLY_SKIN7_NATIVE_3D_TEXT_GEOMETRY_LIVE_GREEN=1
           echo HIGHFLY_SKIN7_4_STATION_REAL_HUNTER_PALADIN_LIVE_GREEN=1
           echo "LIVE_URL=${BASE}paladin-lab/"
