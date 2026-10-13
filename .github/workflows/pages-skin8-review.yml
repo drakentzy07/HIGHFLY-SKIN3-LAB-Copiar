@@ -1,0 +1,120 @@
+name: HIGHFLY SKIN 8.2 — ISOLATED ART REVIEW PAGES
+# Publishes ONLY to independent Skin Studio repository, NEVER cobalt-hollow-lab Pages.
+# Restore the full LAST GREEN independent Pages artifact before adding /skin8/.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pages-skin8-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-skin8-independent-review
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert separate Pages repository and GREEN pinned art RUN
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "drakentzy07/HIGHFLY-SKIN3-LAB-Copiar"
+          test "$GITHUB_REF_NAME" = "main"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/drakentzy07/cobalt-hollow-lab/actions/runs/38442224690 \
+            -o /tmp/skin8-art-run.json
+          python3 - <<'PY'
+          import json
+          s=json.load(open('/tmp/skin8-art-run.json'))
+          assert s['conclusion']=='success', 'SKIN8_ART_GREEN_MISSING; do not deploy'
+          assert s['head_sha']=='401dd7fc6d43309b055ec8ae33456e606c899226'
+          print('PINNED_SKIN8_ART_RUN_GREEN=1')
+          PY
+      - name: Restore exact previously published independent Skin Studio site
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38403282612
+          github-token: ${{ github.token }}
+          path: published-baseline
+      - name: Restore 4491 files of last GREEN site, protect historical paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s published-baseline/artifact.tar
+          mkdir -p independent-site
+          tar -xf published-baseline/artifact.tar -C independent-site
+          test -s independent-site/index.html
+          for path in v20 paladin-lab native-v2 native-v3 native-v4; do
+            test -s "independent-site/$path/index.html"
+          done
+          test ! -e independent-site/skin8
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/skin8-published-originals.sha256
+          echo HIGHFLY_PREVIOUS_INDEPENDENT_SITE_PRESERVED=1
+      - name: Checkout SKIN8.1 exact source without touching game branch
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 401dd7fc6d43309b055ec8ae33456e606c899226
+          path: pinned-skin8
+          sparse-checkout: |
+            skin7-repertoire
+            skin7-auto-fit
+      - name: Add NEW /skin8/ preview, do not rewrite any previously published file
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-site/skin8/repertoire independent-site/skin8/skin7-auto-fit
+          cp pinned-skin8/skin7-repertoire/*.mjs independent-site/skin8/repertoire/
+          cp pinned-skin8/skin7-repertoire/index.html independent-site/skin8/repertoire/
+          cp pinned-skin8/skin7-auto-fit/*.mjs independent-site/skin8/skin7-auto-fit/
+          cat > independent-site/skin8/index.html <<'HTML'
+          <!doctype html><html lang="es"><meta charset="utf-8"><title>HIGHFLY SKIN 8 · EPIC ARMOR FACTORY</title><meta http-equiv="refresh" content="0;url=./repertoire/"><a href="./repertoire/">Abrir HIGHFLY SKIN 8</a></html>
+          HTML
+          cat > independent-site/skin8/NOTICE.txt <<'NOTE'
+          Experimental artistic review of six native ClaireCraft-compatible 3D armor families.
+          23 original bones / 22 clips and original sources immutable. Technical CI green
+          is NOT human artistic approval, physical Samsung S23 certification, or guarantee
+          of zero clipping throughout every combat animation.
+          Only /skin8/ was added to an independent Pages repository, never the public game.
+          NOTE
+          node --check independent-site/skin8/repertoire/art_fit_pass.mjs
+          node --check independent-site/skin8/repertoire/armor_style_dna_factory.mjs
+          sha256sum -c /tmp/skin8-published-originals.sha256 > /tmp/skin8-original-hashes.log
+          echo HIGHFLY_ALL_OLD_PAGES_FILES_BYTE_IDENTICAL=1
+      - name: Verify actual static Pages routing (nested relative ESM imports)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4717 --bind 127.0.0.1 --directory independent-site >/tmp/skin8-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:4717/skin8/ | grep -F 'EPIC ARMOR FACTORY'
+          curl -fsS http://127.0.0.1:4717/skin8/repertoire/ | grep -F 'SKIN 8.2'
+          curl -fsS http://127.0.0.1:4717/skin8/repertoire/art_fit_pass.mjs | grep -F 'balanceNativeArmorSilhouette'
+          curl -fsS http://127.0.0.1:4717/skin8/skin7-auto-fit/native_armor_bridge.mjs | grep -F 'applyNativeArmorBridge'
+          for path in v20 paladin-lab native-v2 native-v3 native-v4; do
+            curl -fsS "http://127.0.0.1:4717/$path/" >/dev/null
+          done
+          echo HIGHFLY_SKIN8_NEW_PAGES_ROUTE_AND_LEGACY_GREEN=1
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.release.outputs.page_url }}skin8/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: release
