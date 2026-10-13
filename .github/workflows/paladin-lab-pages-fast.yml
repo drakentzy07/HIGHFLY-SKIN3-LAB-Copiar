@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/paladin-lab-pages-fast.yml'
+      - 'native-v3/**'
   workflow_dispatch:
 permissions:
   contents: read
