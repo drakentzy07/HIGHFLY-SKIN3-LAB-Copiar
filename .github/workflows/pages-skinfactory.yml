@@ -1,7 +1,8 @@
 name: HIGHFLY SKIN STUDIO V10–V20 - Independent Pages
+# Legacy V10-V20 rebuild is deliberately MANUAL ONLY.
+# Automatic publication uses paladin-lab-pages-fast.yml and preserves every older version.
+# This prevents the old rebuild from replacing /paladin-lab or /native-v2.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
