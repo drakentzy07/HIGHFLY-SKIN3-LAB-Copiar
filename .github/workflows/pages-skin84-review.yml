@@ -1,0 +1,121 @@
+name: HIGHFLY SKIN 8.4 — FIVE TRUE REPLACEMENT ARMORS PAGES (ISOLATED)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pages-skin84-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-skin84-isolated-preview
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert independent Studio and exact five-reference source RUN green
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "drakentzy07/HIGHFLY-SKIN3-LAB-Copiar"
+          test "$GITHUB_REF_NAME" = "main"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json"             https://api.github.com/repos/drakentzy07/cobalt-hollow-lab/actions/runs/38453222634             -o /tmp/skin84-art-run.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/skin84-art-run.json'))
+          assert r['status']=='completed' and r['conclusion']=='success','SKIN84_TRUE_REPLACEMENT_CI_NOT_GREEN'
+          assert r['head_sha']=='0d14d24c5a3070eaa333d210debd62b70d96cea6','PINNED_ART_SOURCE_CHANGED'
+          print('HIGHFLY_SKIN84_FIVE_REFERENCE_EXACT_RUN_GREEN=1')
+          PY
+      - name: Restore exact last independent Pages release including /skin8/
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38451244889
+          github-token: ${{ github.token }}
+          path: published-baseline
+      - name: Hash previously published Skin Studio pages before new preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s published-baseline/artifact.tar
+          mkdir -p independent-site
+          tar -xf published-baseline/artifact.tar -C independent-site
+          test -s independent-site/index.html
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83; do
+            test -s "independent-site/$d/index.html"
+          done
+          test ! -e independent-site/skin84
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/highfly-skin84-old-files.sha256
+          echo HIGHFLY_INDEPENDENT_STUDIO_PREVIOUS_RELEASE_PRESERVED=1
+      - name: Checkout exact five-reference code snapshot — game source READ ONLY
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 0d14d24c5a3070eaa333d210debd62b70d96cea6
+          path: pinned-skin84
+          sparse-checkout: |
+            skin7-repertoire
+            skin7-auto-fit
+      - name: Add /skin84/ without modifying previous pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-site/skin84/repertoire independent-site/skin84/skin7-auto-fit
+          cp pinned-skin84/skin7-repertoire/index.html independent-site/skin84/repertoire/
+          cp pinned-skin84/skin7-repertoire/*.mjs independent-site/skin84/repertoire/
+          cp pinned-skin84/skin7-auto-fit/*.mjs independent-site/skin84/skin7-auto-fit/
+          cat > independent-site/skin84/index.html <<'HTML'
+          <!doctype html><html lang="es"><meta charset="utf-8">
+          <title>HIGHFLY SKIN 8.4 — True Armor Replacement</title>
+          <meta http-equiv="refresh" content="0;url=./repertoire/">
+          <a href="./repertoire/">Abrir Skin 8.3 · cinco armaduras de referencia</a></html>
+          HTML
+          cat > independent-site/skin84/NOTICE.txt <<'NOTICE'
+          Experimental TRUE REPLACEMENT 3D reinterpretations of five user-submitted four-view images.
+          The source images are NOT source 3D meshes, so this is not exact image-to-3D conversion.
+          Runtime reuses original ClaudeCraft 23-bone Rig_Medium and 22 clips.
+          There are 11 NEW fully skinned slot armor assemblies; original visual shells are all disabled. Final visual clipping,
+          cloth simulation and physical S23 testing require review.
+          All previously published independent Studio pages are preserved byte-for-byte.
+          This deployment NEVER touches the separate HIGHFLY gameplay Pages repo.
+          NOTICE
+          node --check independent-site/skin84/repertoire/reference_fusion_83.mjs
+          node --check independent-site/skin84/repertoire/armor_style_dna_factory.mjs
+          sha256sum -c /tmp/highfly-skin84-old-files.sha256 > /tmp/skin84-old-hashes.log
+          echo HIGHFLY_SKIN84_OLD_PAGES_BYTES_PRESERVED=1
+      - name: Verify new /skin84/ and six historical studio routes over HTTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4743 --bind 127.0.0.1 --directory independent-site >/tmp/highfly-skin84-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:4743/skin84/ | grep -F 'Reference Armor Fusion'
+          curl -fsS http://127.0.0.1:4743/skin84/repertoire/ | grep -F 'SKIN 8.4'
+          curl -fsS http://127.0.0.1:4743/skin84/repertoire/reference_fusion_83.mjs | grep -F 'fuseReferenceArmors83'
+          curl -fsS http://127.0.0.1:4743/skin84/skin7-auto-fit/native_armor_bridge.mjs | grep -F 'applyNativeArmorBridge'
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83; do
+            curl -fsS "http://127.0.0.1:4743/$d/" >/dev/null
+          done
+          echo HIGHFLY_SKIN84_NEW_AND_LEGACY_HTTP_ROUTING_GREEN=1
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}skin84/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
