@@ -1,0 +1,130 @@
+name: HIGHFLY SKIN 8.8 - THREE LEGENDARY FIDELITY PAGES (ISOLATED)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pages-skin88-legendary-fidelity.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-skin88-isolated-preview
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pin 8.8 QA RUN and require success before any deploy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "drakentzy07/HIGHFLY-SKIN3-LAB-Copiar"
+          test "$GITHUB_REF_NAME" = "main"
+          for attempt in $(seq 1 40); do
+            curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/drakentzy07/cobalt-hollow-lab/actions/runs/38559072009 -o /tmp/skin88-qa-run.json
+            state="$(python3 -c 'import json;print(json.load(open("/tmp/skin88-qa-run.json"))["status"])')"
+            if [ "$state" = "completed" ]; then break; fi
+            sleep 10
+          done
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/skin88-qa-run.json'))
+          assert r['status']=='completed' and r['conclusion']=='success', 'SKIN88_CHROME_RUN_NOT_GREEN'
+          assert r['head_sha']=='656c7e8e25b1f1d1ed1a3fce1f6d6571f5e785c9', 'SKIN88_ART_SOURCE_NOT_PINNED'
+          print('SKIN88_3_HERO_CHROME_WEBGL_AND_ANDROID_SIM_GREEN=1')
+          PY
+      - name: Restore full independent Pages from last known GREEN release
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38509826982
+          github-token: ${{ github.token }}
+          path: published-baseline
+      - name: Verify historic pages and baseline before writing new folder
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s published-baseline/artifact.tar
+          mkdir -p independent-site
+          tar -xf published-baseline/artifact.tar -C independent-site
+          test -s independent-site/index.html
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86 skin87; do
+            test -s "independent-site/$d/index.html"
+          done
+          test ! -e independent-site/skin88
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/skin88-previous-pages.sha256
+          echo SKIN88_BASELINE_PRESERVED=1
+      - name: Checkout only pinned skin factory sources - never game deployment
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 656c7e8e25b1f1d1ed1a3fce1f6d6571f5e785c9
+          path: pinned-skin88
+          sparse-checkout: |
+            skin7-repertoire
+            skin7-auto-fit
+      - name: Add independent /skin88/ prototype and keep every historic byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-site/skin88/repertoire independent-site/skin88/skin7-auto-fit
+          cp pinned-skin88/skin7-repertoire/index.html independent-site/skin88/repertoire/
+          cp pinned-skin88/skin7-repertoire/*.mjs independent-site/skin88/repertoire/
+          cp pinned-skin88/skin7-auto-fit/*.mjs independent-site/skin88/skin7-auto-fit/
+          cat > independent-site/skin88/index.html <<'HTML'
+          <!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>HIGHFLY SKIN 8.8 - Three Legendary Armor Lab</title>
+          <meta http-equiv="refresh" content="0;url=./repertoire/">
+          <a href="./repertoire/">Abrir laboratorio SKIN 8.8 · Dragon Sovereign, Celestial Seraph, Mortis Seraph</a></html>
+          HTML
+          cat > independent-site/skin88/NOTICE.txt <<'NOTICE'
+          ISOLATED, TECHNICALLY TESTED PROTOTYPE; NOT ARTISTICALLY APPROVED.
+          Three legendary armor variants on original ClaudeCraft Warrior Rig_Medium.
+          Original source model and 23 bones / 22 animation clips remain unchanged.
+          17 native weighted shell meshes receive theme-based 3D sculpting.
+          Wings from SKIN 8.7 are kept skin-bound; no independent cloth/wing physics.
+          Experimental old skins are hidden from the main selector, not deleted.
+          Images are artistic reference targets, NOT exact 3D mesh conversion.
+          Physical Samsung S23 Ultra QA and concept-fidelity approval are pending.
+          Past independent laboratory pages preserved exactly, including /skin87/.
+          This workflow NEVER deploys or changes the separate HIGHFLY game.
+          NOTICE
+          node --check independent-site/skin88/repertoire/legendary_fidelity_88.mjs
+          node --check independent-site/skin88/repertoire/legendary_hero_armors_87.mjs
+          node --check independent-site/skin88/repertoire/armor_style_dna_factory.mjs
+          sha256sum -c /tmp/skin88-previous-pages.sha256 >/tmp/skin88-previous-hashes.log
+          echo SKIN88_HISTORIC_STUDIO_ROUTES_UNMODIFIED=1
+      - name: Smoke test SKIN 8.8 and earlier independently published pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4743 --bind 127.0.0.1 --directory independent-site >/tmp/highfly-skin88-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:4743/skin88/ | grep -F 'Three Legendary Armor Lab'
+          curl -fsS http://127.0.0.1:4743/skin88/repertoire/ | grep -F 'SKIN 8.8'
+          curl -fsS http://127.0.0.1:4743/skin88/repertoire/legendary_fidelity_88.mjs | grep -F 'integrateLegendaryFidelity88'
+          curl -fsS http://127.0.0.1:4743/skin88/skin7-auto-fit/native_armor_bridge.mjs | grep -F 'applyNativeArmorBridge'
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86 skin87; do
+            curl -fsS "http://127.0.0.1:4743/$d/" >/dev/null
+          done
+          echo SKIN88_HISTORIC_ROUTES_AND_NEW_QA_GREEN=1
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}skin88/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
