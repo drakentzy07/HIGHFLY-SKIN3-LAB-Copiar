@@ -1,0 +1,119 @@
+name: HIGHFLY SKIN 9.1 - NATIVE OBSIDIAN KNIGHT TEST PAGES
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pages-skin91-obsidian-wip.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin91-native-knight-isolated
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require pinned GREEN native Knight real WebGL evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "drakentzy07/HIGHFLY-SKIN3-LAB-Copiar"
+          test "$GITHUB_REF_NAME" = "main"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/drakentzy07/cobalt-hollow-lab/actions/runs/38575492281 -o /tmp/skin91-qa.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/skin91-qa.json'))
+          assert r['status']=='completed' and r['conclusion']=='success','SKIN91_NATIVE_KNIGHT_WEBGL_NOT_GREEN'
+          assert r['head_sha']=='683bbef5feea65e33d6812072f1edc9852c1a89c','SKIN91_SOURCE_IS_NOT_PINNED'
+          print('SKIN91_12_KNIGHT_NATIVE_23_RIG_22_CLIPS_WEBGL_GREEN=1')
+          PY
+      - name: Restore entire prior independent studio Pages archive
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38565891169
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Freeze all older releases byte by byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s previous/artifact.tar
+          mkdir -p independent-site
+          tar -xf previous/artifact.tar -C independent-site
+          test -s independent-site/index.html
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86 skin87 skin88 skin89-wip; do
+            test -s "independent-site/$d/index.html"
+          done
+          test ! -e independent-site/skin91-wip
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/hf91-previous-sha256.txt
+          echo HIGHFLY_OLDER_SKIN_PAGES_PRESERVED=1
+      - name: Checkout ONLY pin of independent 9.1 art source
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 683bbef5feea65e33d6812072f1edc9852c1a89c
+          path: pinned-skin91
+          sparse-checkout: |
+            skin7-repertoire
+            skin7-auto-fit
+      - name: Add new /skin91-wip/ without replacing older experiments
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-site/skin91-wip/repertoire independent-site/skin91-wip/skin7-auto-fit
+          cp pinned-skin91/skin7-repertoire/index.html independent-site/skin91-wip/repertoire/
+          cp pinned-skin91/skin7-repertoire/*.mjs independent-site/skin91-wip/repertoire/
+          cp pinned-skin91/skin7-auto-fit/*.mjs independent-site/skin91-wip/skin7-auto-fit/
+          cat > independent-site/skin91-wip/index.html <<'HTML'
+          <!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>HIGHFLY SKIN 9.1 - OBSIDIAN NATIVE KNIGHT (WIP)</title>
+          <meta http-equiv="refresh" content="0;url=./repertoire/">
+          <a href="./repertoire/">Abrir laboratorio experimental SKIN 9.1: Obsidian Monarch, geometría KNIGHT auténtica</a></html>
+          HTML
+          cat > independent-site/skin91-wip/NOTICE.txt <<'NOTICE'
+          SKIN 9.1 - TRUE NATIVE KNIGHT RESCULPT. EXPERIMENTAL WIP.
+          Source ClaudeCraft warrior_modular.glb remains unmodified, original 23-bone
+          Rig_Medium skeleton and 22 clips. 12 rigged native Knight armor parts
+          directly resculpted and recolored: two real native helmet pieces, continuous
+          original breastplate, gauntlets and boots. NO wings. This is still a compact
+          low-poly visual prototype, NOT a photorealistic clone of generated concept art.
+          Artistic approval and physical S23 Ultra QA remain pending.
+          All older independent pages preserved. HIGHFLY public GAME UNTOUCHED.
+          NOTICE
+          node --check independent-site/skin91-wip/repertoire/obsidian_knight_native_91.mjs
+          node --check independent-site/skin91-wip/repertoire/armor_style_dna_factory.mjs
+          sha256sum -c /tmp/hf91-previous-sha256.txt >/tmp/hf91-preservation.log
+          echo SKIN91_ALL_PREVIOUS_STUDIO_FILES_PRESERVED=1
+      - name: HTTP verify new preview and previous Pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4743 --bind 127.0.0.1 --directory independent-site >/tmp/hf91-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:4743/skin91-wip/ | grep -F 'OBSIDIAN NATIVE KNIGHT'
+          curl -fsS http://127.0.0.1:4743/skin91-wip/repertoire/ | grep -F 'SKIN 9.1'
+          curl -fsS http://127.0.0.1:4743/skin91-wip/repertoire/obsidian_knight_native_91.mjs | grep -F 'forgeObsidianKnight91'
+          for d in skin88 skin89-wip paladin-lab v20; do curl -fsS "http://127.0.0.1:4743/$d/" >/dev/null; done
+          echo SKIN91_ISOLATED_PAGES_HTTP_GREEN=1
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}skin91-wip/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
