@@ -72,20 +72,20 @@ jobs:
           test "$(git -C pinned-tailor-r09 rev-parse HEAD)" = 'e85735e3f5a889b204b06c5f74774cb6a590dc69'
           cp pinned-tailor-r09/skin-factory-core/tailor_lab_r09.html independent-site/tailor-r09/index.html
           cat >independent-site/tailor-r09/NOTICE.txt <<'NOTE'
-          HIGHFLY SASTRE 3D R0.8 — DIAGNOSTIC / BROWSER-LOCAL FILE INTAKE.
+          HIGHFLY SASTRE 3D R0.9 — DIAGNOSTIC / BROWSER-LOCAL FILE INTAKE.
           User-supplied ZIP stays in browser memory and is not uploaded to server.
           Source actor: original ClaudeCraft, frozen commit 9b57e49c9676d75962700f828cc00a50a9a988b5.
-          Automatic nearest-body weight transfer is only approximate. No art approval,
+          Raw IA remains STATIC and TOPOLOGY-INTEGRAL. Knight rigged clothes are ORIGINAL native assets. No art approval,
           no wearable-grade slot mapping, no clipping certification, no mobile FPS guarantee.
           This site includes no user-uploaded or generated Obsidian Monarch ZIP/GLB.
           Existing public Pages, game, previous laboratories preserved.
           NOTE
-          grep -F 'SASTRE 3D R0.8' independent-site/tailor-r09/index.html
+          grep -F 'SASTRE 3D R0.9' independent-site/tailor-r09/index.html
           grep -F 'NO EQUIPABLE' independent-site/tailor-r09/index.html
           sha256sum -c /tmp/hf-tailor-old-site.sha256 >/tmp/hf-tailor-preserved.txt
           python3 -m http.server 4873 --bind 127.0.0.1 --directory independent-site >/tmp/hf-tailor-http.log 2>&1 &
           sleep 2
-          curl -fsS http://127.0.0.1:4873/tailor-r09/ | grep -F 'SASTRE 3D R0.8'
+          curl -fsS http://127.0.0.1:4873/tailor-r09/ | grep -F 'SASTRE 3D R0.9'
           echo HIGHFLY_R09_ALL_PRIOR_ROUTES_BYTE_PRESERVED_AND_LOCAL_ZIP_LOAD_READY=1
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
