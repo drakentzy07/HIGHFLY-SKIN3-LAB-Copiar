@@ -1,0 +1,118 @@
+name: HIGHFLY SKIN 8.9 - THREE SUPREME EXPERIMENTAL LAB PAGES
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pages-skin89-wip.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin89-wip-isolated
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact GREEN three supreme rig/WebGL commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "drakentzy07/HIGHFLY-SKIN3-LAB-Copiar"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/drakentzy07/cobalt-hollow-lab/actions/runs/38564647586 -o /tmp/skin89-run.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/skin89-run.json'))
+          assert r['status']=='completed' and r['conclusion']=='success','SKIN89_3D_CI_NOT_GREEN'
+          assert r['head_sha']=='0f6f1196c3476387f5d7f61bbe13fba1b72415c1','SKIN89_3D_PINNED_SOURCE_CHANGED'
+          print('SKIN89_3D_CHROME_RIG_AND_ANDROID_SIM_GREEN=1')
+          PY
+      - name: Restore all previously published independent studio routes
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38559285204
+          github-token: ${{ github.token }}
+          path: baseline
+      - name: Guard all historic SKIN directories byte for byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s baseline/artifact.tar
+          mkdir -p independent-site
+          tar -xf baseline/artifact.tar -C independent-site
+          test -s independent-site/index.html
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86 skin87 skin88; do
+            test -s "independent-site/$d/index.html"
+          done
+          test ! -e independent-site/skin89-wip
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/hf89-old-pages.sha256
+      - name: Checkout exact source commit without any game deploy
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: 0f6f1196c3476387f5d7f61bbe13fba1b72415c1
+          path: pinned-skin89
+          sparse-checkout: |
+            skin7-repertoire
+            skin7-auto-fit
+      - name: Install only /skin89-wip/ and preserve prior content
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-site/skin89-wip/repertoire independent-site/skin89-wip/skin7-auto-fit
+          cp pinned-skin89/skin7-repertoire/index.html independent-site/skin89-wip/repertoire/
+          cp pinned-skin89/skin7-repertoire/*.mjs independent-site/skin89-wip/repertoire/
+          cp pinned-skin89/skin7-auto-fit/*.mjs independent-site/skin89-wip/skin7-auto-fit/
+          cat > independent-site/skin89-wip/index.html <<'HTML'
+          <!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>HIGHFLY SKIN 8.9 - WIP 3D Warrior</title>
+          <meta http-equiv="refresh" content="0;url=./repertoire/">
+          <a href="./repertoire/">Abrir prototipos 3D SKIN 8.9 · Calidad artística PENDIENTE</a></html>
+          HTML
+          cat > independent-site/skin89-wip/NOTICE.txt <<'NOTICE'
+          EXPERIMENTAL WIP — NOT ARTISTICALLY ACCEPTABLE OR APPROVED.
+          Obsidian Monarch, Solar Aegis, Crimson Dragon Emperor are actual rig-bound
+          procedural geometry prototypes, not image-faithful final 3D recreations.
+          Helm and breastplate rebuilt as separate continuous skinned surfaces.
+          23-bone ClaudeCraft rig, 22 clips; no wings. PC Chrome QA GREEN.
+          Samsung S23 physical and visual art validation remain PENDING.
+          Do not replace /skin88/ or the separate HIGHFLY public game.
+          NOTICE
+          node --check independent-site/skin89-wip/repertoire/supreme_native_armor_89.mjs
+          node --check independent-site/skin89-wip/repertoire/armor_style_dna_factory.mjs
+          sha256sum -c /tmp/hf89-old-pages.sha256 >/tmp/hf89-old-pages-unchanged.log
+          echo SKIN89_WIP_ALL_HISTORIC_PAGES_PRESERVED=1
+      - name: Validate new WIP route and existing Studio URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4743 --bind 127.0.0.1 --directory independent-site >/tmp/hf89-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:4743/skin89-wip/ | grep -F 'WIP 3D Warrior'
+          curl -fsS http://127.0.0.1:4743/skin89-wip/repertoire/ | grep -F 'SKIN 8.9'
+          curl -fsS http://127.0.0.1:4743/skin89-wip/repertoire/supreme_native_armor_89.mjs | grep -F 'forgeSupreme89'
+          for d in skin87 skin88 native-v2 paladin-lab; do
+            curl -fsS "http://127.0.0.1:4743/$d/" >/dev/null
+          done
+          echo SKIN89_WIP_PAGES_HTTP_QA_GREEN=1
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}skin89-wip/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
