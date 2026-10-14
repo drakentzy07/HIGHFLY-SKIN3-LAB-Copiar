@@ -1,0 +1,102 @@
+name: HIGHFLY SKIN FACTORY R0.9 - ISOLATED LIVE TAILOR DEMO
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pages-tailor-r09-preview.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm actual source browser gate GREEN (real 23 bones, 22 clips)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "drakentzy07/HIGHFLY-SKIN3-LAB-Copiar"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/drakentzy07/cobalt-hollow-lab/actions/runs/38631037698 \
+            -o /tmp/hf-tailor-r09-gate.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/hf-tailor-r09-gate.json'))
+          assert d['status']=='completed' and d['conclusion']=='success','R09_NATIVE_BROWSER_NOT_GREEN'
+          assert d['head_sha']=='393b26fbbe9df6e7006c2a98fc174ebd6ef23b03','R09_TEST_GATE_SOURCE_SHA_CHANGED'
+          print('HIGHFLY_R09_23_BONES_22_CLIPS_CHROME_SOURCE_GATE_GREEN=1')
+          PY
+      - name: Restore EXACT independent Pages from existing Skin 9.1 (do not alter existing site)
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38627907836
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Preserve all existing routes; add R0.8 only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s previous/artifact.tar
+          mkdir -p independent-site
+          tar -xf previous/artifact.tar -C independent-site
+          test -s independent-site/index.html
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86 skin87 skin88 skin89-wip skin91-wip tailor-r08; do
+            test -s "independent-site/$d/index.html"
+          done
+          test ! -e independent-site/tailor-r09
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum >/tmp/hf-tailor-old-site.sha256
+          mkdir -p independent-site/tailor-r09
+      - uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: e85735e3f5a889b204b06c5f74774cb6a590dc69
+          path: pinned-tailor-r09
+          sparse-checkout: |
+            skin-factory-core/tailor_lab_r09.html
+      - name: Copy only isolated HTML that uses local ZIP (never copies user artwork)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-tailor-r09 rev-parse HEAD)" = 'e85735e3f5a889b204b06c5f74774cb6a590dc69'
+          cp pinned-tailor-r09/skin-factory-core/tailor_lab_r09.html independent-site/tailor-r09/index.html
+          cat >independent-site/tailor-r09/NOTICE.txt <<'NOTE'
+          HIGHFLY SASTRE 3D R0.8 — DIAGNOSTIC / BROWSER-LOCAL FILE INTAKE.
+          User-supplied ZIP stays in browser memory and is not uploaded to server.
+          Source actor: original ClaudeCraft, frozen commit 9b57e49c9676d75962700f828cc00a50a9a988b5.
+          Automatic nearest-body weight transfer is only approximate. No art approval,
+          no wearable-grade slot mapping, no clipping certification, no mobile FPS guarantee.
+          This site includes no user-uploaded or generated Obsidian Monarch ZIP/GLB.
+          Existing public Pages, game, previous laboratories preserved.
+          NOTE
+          grep -F 'SASTRE 3D R0.8' independent-site/tailor-r09/index.html
+          grep -F 'NO EQUIPABLE' independent-site/tailor-r09/index.html
+          sha256sum -c /tmp/hf-tailor-old-site.sha256 >/tmp/hf-tailor-preserved.txt
+          python3 -m http.server 4873 --bind 127.0.0.1 --directory independent-site >/tmp/hf-tailor-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:4873/tailor-r09/ | grep -F 'SASTRE 3D R0.8'
+          echo HIGHFLY_R09_ALL_PRIOR_ROUTES_BYTE_PRESERVED_AND_LOCAL_ZIP_LOAD_READY=1
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}tailor-r09/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
