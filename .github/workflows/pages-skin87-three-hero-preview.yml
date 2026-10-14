@@ -1,0 +1,125 @@
+name: HIGHFLY SKIN 8.7 — THREE LEGENDARY RIGGED ARMORS PAGES (ISOLATED)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pages-skin87-three-hero-preview.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-skin87-isolated-preview
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert independent Studio and exact five-reference source RUN green
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "drakentzy07/HIGHFLY-SKIN3-LAB-Copiar"
+          test "$GITHUB_REF_NAME" = "main"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json"             https://api.github.com/repos/drakentzy07/cobalt-hollow-lab/actions/runs/38509374948             -o /tmp/skin87-art-run.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/skin87-art-run.json'))
+          assert r['status']=='completed' and r['conclusion']=='success','SKIN87_THREE_LEGENDARY_HEROES_CI_NOT_GREEN'
+          assert r['head_sha']=='e2f6591ca3a904f77c0dd842194e28502cfa4e86','PINNED_ART_SOURCE_CHANGED'
+          print('HIGHFLY_SKIN87_FIVE_REFERENCE_EXACT_RUN_GREEN=1')
+          PY
+      - name: Restore exact last independent Pages release including /skin8/
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38472670066
+          github-token: ${{ github.token }}
+          path: published-baseline
+      - name: Hash previously published Skin Studio pages before new preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s published-baseline/artifact.tar
+          mkdir -p independent-site
+          tar -xf published-baseline/artifact.tar -C independent-site
+          test -s independent-site/index.html
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86; do
+            test -s "independent-site/$d/index.html"
+          done
+          test ! -e independent-site/skin87
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/highfly-skin87-old-files.sha256
+          echo HIGHFLY_INDEPENDENT_STUDIO_PREVIOUS_RELEASE_PRESERVED=1
+      - name: Checkout exact five-reference code snapshot — game source READ ONLY
+        uses: actions/checkout@v4
+        with:
+          repository: drakentzy07/cobalt-hollow-lab
+          ref: e2f6591ca3a904f77c0dd842194e28502cfa4e86
+          path: pinned-skin87
+          sparse-checkout: |
+            skin7-repertoire
+            skin7-auto-fit
+      - name: Add /skin87/ without modifying previous pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-site/skin87/repertoire independent-site/skin87/skin7-auto-fit
+          cp pinned-skin87/skin7-repertoire/index.html independent-site/skin87/repertoire/
+          cp pinned-skin87/skin7-repertoire/*.mjs independent-site/skin87/repertoire/
+          cp pinned-skin87/skin7-auto-fit/*.mjs independent-site/skin87/skin7-auto-fit/
+          cat > independent-site/skin87/index.html <<'HTML'
+          <!doctype html><html lang="es"><meta charset="utf-8">
+          <title>HIGHFLY SKIN 8.7 — Three Legendary Hero Armors</title>
+          <meta http-equiv="refresh" content="0;url=./repertoire/">
+          <a href="./repertoire/">Abrir SKIN 8.7 · cinco armaduras con formas 3D originales articuladas</a></html>
+          HTML
+          cat > independent-site/skin87/NOTICE.txt <<'NOTICE'
+          Experimental TRUE REPLACEMENT 3D reinterpretations of five user-submitted four-view images.
+          The source images are NOT source 3D meshes, so this is not exact image-to-3D conversion.
+          Runtime reuses original ClaudeCraft 23-bone Rig_Medium and 22 clips.
+          Three separately selectable NEW 3D armors: Dragon Sovereign (scale plates and membrane wings), Celestial Seraph (ivory feathered wings), Mortis Seraph (black feathered wings and Gothic mask). All use native Back-rooted wing meshes with 23-bone skinning. These are reference-inspired prototypes, NOT image-exact reconstructions. This is experimental, not user-approved final art. Final visual clipping,
+          cloth simulation and physical S23 testing require review.
+          All previously published independent Studio pages are preserved byte-for-byte.
+          This deployment NEVER touches the separate HIGHFLY gameplay Pages repo.
+          NOTICE
+          node --check independent-site/skin87/repertoire/reference_fusion_83.mjs
+          node --check independent-site/skin87/repertoire/native_reforge_841.mjs
+          node --check independent-site/skin87/repertoire/native_surface_conform_85.mjs
+          node --check independent-site/skin87/repertoire/anchored_silhouette_86.mjs
+          node --check independent-site/skin87/repertoire/legendary_hero_armors_87.mjs
+          node --check independent-site/skin87/repertoire/armor_style_dna_factory.mjs
+          sha256sum -c /tmp/highfly-skin87-old-files.sha256 > /tmp/skin87-old-hashes.log
+          echo HIGHFLY_SKIN87_OLD_PAGES_BYTES_PRESERVED=1
+      - name: Verify new /skin87/ and six historical studio routes over HTTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4743 --bind 127.0.0.1 --directory independent-site >/tmp/highfly-skin87-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:4743/skin87/ | grep -F 'Three Legendary Hero Armors'
+          curl -fsS http://127.0.0.1:4743/skin87/repertoire/ | grep -F 'SKIN 8.7'
+          curl -fsS http://127.0.0.1:4743/skin87/repertoire/reference_fusion_83.mjs | grep -F 'fuseReferenceArmors83'
+          curl -fsS http://127.0.0.1:4743/skin87/skin7-auto-fit/native_armor_bridge.mjs | grep -F 'applyNativeArmorBridge'
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85; do
+            curl -fsS "http://127.0.0.1:4743/$d/" >/dev/null
+          done
+          echo HIGHFLY_SKIN87_NEW_AND_LEGACY_HTTP_ROUTING_GREEN=1
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}skin87/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
