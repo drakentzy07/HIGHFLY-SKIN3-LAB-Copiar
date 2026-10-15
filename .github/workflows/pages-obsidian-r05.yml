@@ -1,0 +1,103 @@
+name: HIGHFLY Obsidian R05 - true native wearable studio Pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'obsidian-r05/**'
+      - '.github/workflows/pages-obsidian-r05.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore entire latest independently published Skin Lab site
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38631478064
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Retain original V10-V20, SKIN91, R09 and all prior studio pages unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s previous/artifact.tar
+          mkdir -p independent-site
+          tar -xf previous/artifact.tar -C independent-site
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86 skin87 skin88 skin89-wip skin91-wip tailor-r08 tailor-r09; do
+            test -s "independent-site/$d/index.html"
+          done
+          test -s independent-site/skin91-wip/repertoire/obsidian_knight_native_91.mjs
+          test -s independent-site/v20/vendor/three/build/three.module.js
+          test -s independent-site/v20/vendor/meshopt_decoder.module.js
+          test ! -e independent-site/obsidian-r05
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum >/tmp/highfly-existing-studio-shas.txt
+          mkdir -p independent-site/obsidian-r05
+          cp obsidian-r05/index.html obsidian-r05/forge-r05.mjs independent-site/obsidian-r05/
+          cat > independent-site/obsidian-r05/NOTICE.txt <<'TXT'
+          HIGHFLY R05 - native Obsidian Monarch wearer lab, NOT approved final art.
+          Only uses original Knight 12 weighted pieces transformed in-place on Rig_Medium
+          (23 joints and 22 source clips), native Paladin 11 pieces / 17 actual primitives.
+          Three selectable wardrobe states: bare modular Warrior, native Paladin,
+          and deformed original Knight Obsidian R05. No source game deployment.
+          No claim of helmet faithfulness, animated clipping-free quality or Samsung hardware QA.
+          Original KayKit/ClaudeCraft source frozen at upstream commit 9b57e49.
+          TXT
+          node --check independent-site/obsidian-r05/forge-r05.mjs
+          node --check obsidian-r05/browser-qa.cjs
+          sha256sum -c /tmp/highfly-existing-studio-shas.txt >/tmp/highfly-r05-preservation.txt
+          echo HIGHFLY_R05_ALL_OLD_STUDIO_PATHS_BYTE_IDENTICAL=1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test and Chromium
+        shell: bash
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Real WebGL wearable and wardrobe checks in desktop and Android landscape emulator
+        shell: bash
+        timeout-minutes: 7
+        env:
+          HF_R05_URL: http://127.0.0.1:4933/obsidian-r05/
+          HF_R05_SCREENSHOT_DIR: ${{ runner.temp }}/highfly-r05-shots
+        run: |
+          set -euo pipefail
+          mkdir -p "$HF_R05_SCREENSHOT_DIR"
+          python3 -m http.server 4933 --bind 127.0.0.1 --directory independent-site >/tmp/highfly-r05-http.log 2>&1 &
+          sleep 2
+          curl -fsSL "$HF_R05_URL" | grep -F 'OBSIDIAN MONARCH R05'
+          node obsidian-r05/browser-qa.cjs
+          echo HIGHFLY_R05_DESKTOP_ANDROID_NATIVE_WEARABLE_WEBGL_GREEN=1
+      - name: Archive native 3D visuals and QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-R05-REAL-NATIVE-WEARABLE-BROWSER-SHOTS
+          path: ${{ runner.temp }}/highfly-r05-shots
+          retention-days: 30
+          if-no-files-found: warn
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}obsidian-r05/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
