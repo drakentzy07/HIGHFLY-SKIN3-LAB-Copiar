@@ -123,7 +123,7 @@ export function equipObsidianR052(gltf){
  setMode('obsidian');
  return {setMode,setRelief,validate,proof:{schema:'highfly.skinlab.native-paladin-r052',
   authenticPaladinDonorMeshes:17,slots:targets.length,
-  sourceWeightedVertices:edits.reduce((a,x)=>a+x.vertices,0),sourceRigBones:23,sourceClips:22,
+  sourceWeightedVertices:edits.reduce((a,x)=>a+x.vertices,0),sourceRigBones:23,sourceClips:22,originalBones:23,clips:22,
   materialsReversible:true,originalWeightsAndSkeletonReused:true,
   newActorCreated:false,newFloatingArmorNodes:0,actualNewArmorGeometryFromAI:false,
   artisticFidelityApproved:false,physicalAndroidTested:false,
