@@ -3,8 +3,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'obsidian-r0511/**'
-      - '.github/workflows/pages-obsidian-r0511.yml'
+      - 'obsidian-r051/**'
+      - '.github/workflows/pages-obsidian-r051.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -41,11 +41,11 @@ jobs:
           test -s independent-site/skin91-wip/repertoire/obsidian_knight_native_91.mjs
           test -s independent-site/v20/vendor/three/build/three.module.js
           test -s independent-site/v20/vendor/meshopt_decoder.module.js
-          test ! -e independent-site/obsidian-r0511
+          test ! -e independent-site/obsidian-r051
           find independent-site -type f -print0 | sort -z | xargs -0 sha256sum >/tmp/highfly-existing-studio-shas.txt
-          mkdir -p independent-site/obsidian-r0511
-          cp obsidian-r0511/index.html obsidian-r0511/forge-r051.mjs independent-site/obsidian-r0511/
-          cat > independent-site/obsidian-r0511/NOTICE.txt <<'TXT'
+          mkdir -p independent-site/obsidian-r051
+          cp obsidian-r051/index.html obsidian-r051/forge-r051.mjs independent-site/obsidian-r051/
+          cat > independent-site/obsidian-r051/NOTICE.txt <<'TXT'
           HIGHFLY R05.1 - native Obsidian Monarch wearer lab, NOT approved final art.
           Only uses original Knight 12 weighted pieces transformed in-place on Rig_Medium
           (23 joints and 22 source clips), native Paladin 11 pieces / 17 actual primitives.
@@ -54,8 +54,8 @@ jobs:
           No claim of helmet faithfulness, animated clipping-free quality or Samsung hardware QA.
           Original KayKit/ClaudeCraft source frozen at upstream commit 9b57e49.
           TXT
-          node --check independent-site/obsidian-r0511/forge-r051.mjs
-          node --check obsidian-r0511/browser-qa.cjs
+          node --check independent-site/obsidian-r051/forge-r051.mjs
+          node --check obsidian-r051/browser-qa.cjs
           sha256sum -c /tmp/highfly-existing-studio-shas.txt >/tmp/highfly-r051-preservation.txt
           echo HIGHFLY_R051_ALL_OLD_STUDIO_PATHS_BYTE_IDENTICAL=1
       - uses: actions/setup-node@v4
@@ -70,15 +70,15 @@ jobs:
         shell: bash
         timeout-minutes: 7
         env:
-          HF_R051_URL: http://127.0.0.1:4933/obsidian-r0511/
+          HF_R051_URL: http://127.0.0.1:4933/obsidian-r051/
           HF_R051_SHOTS: ${{ runner.temp }}/highfly-r051-shots
         run: |
           set -euo pipefail
-          mkdir -p "$HF_R051_SCREENSHOT_DIR"
+          mkdir -p "$HF_R051_SHOTS"
           python3 -m http.server 4933 --bind 127.0.0.1 --directory independent-site >/tmp/highfly-r051-http.log 2>&1 &
           sleep 2
           curl -fsSL "$HF_R051_URL" | grep -F 'OBSIDIAN MONARCH R05.1'
-          node obsidian-r0511/browser-qa.cjs
+          node obsidian-r051/browser-qa.cjs
           echo HIGHFLY_R051_DESKTOP_ANDROID_NATIVE_WEARABLE_WEBGL_GREEN=1
       - name: Archive native 3D visuals and QA
         if: always()
@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.publication.outputs.page_url }}obsidian-r0511/
+      url: ${{ steps.publication.outputs.page_url }}obsidian-r051/
     steps:
       - uses: actions/deploy-pages@v4
         id: publication
