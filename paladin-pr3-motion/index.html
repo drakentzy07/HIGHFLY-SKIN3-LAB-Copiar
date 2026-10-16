@@ -46,7 +46,7 @@ const body=['Head','Torso','ArmL','ArmR','HandL','HandR','LegL','LegR','FootL','
 const armor=['Head','Chest','Back','ArmL','ArmR','HandL','HandR','LegL','LegR','FootL','FootR'];
 const all=new Map(),bodyGroups=new Map(),armorGroups=new Map();
 let gltf,mixer,rest=[];
-const getSlot=(name,prefix,slots)=>slots.find(s=>name===prefix+s||name.startsWith(prefix+s+'_'))||null;
+const getSlot=(name,prefix,slots)=>slots.find(s=>name.startsWith(prefix+s))||null;
 function addGroup(groups,key,mesh){
  if(!groups.has(key))groups.set(key,[]);
  groups.get(key).push(mesh);
