@@ -158,12 +158,14 @@ window.__HF_PR3_SAMPLE__=(clipName,fraction)=>{
   });
   const box=new THREE.Box3().setFromObject(gltf.scene);
   const center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
-  cameraCenter=center;cameraDistance=Math.max(size.y*1.45,1);
+  cameraCenter=center;cameraDistance=Math.max(size.y*2.15,2.8);
   frozenRest();updateCamera();
   const clipsSel=document.querySelector('#clipSelect'),frameSel=document.querySelector('#frameSelect');
   clipsSel.replaceChildren(...gltf.animations.map(c=>{
     const opt=document.createElement('option');opt.value=c.name;opt.textContent=c.name;return opt;
   }));
+  const standing=gltf.animations.find(c=>c.name==='Idle')||gltf.animations.find(c=>/idle/i.test(c.name)&&!/floor|sit|lie/i.test(c.name));
+  if(standing)clipsSel.value=standing.name;
   const preview=()=>{clipPose(clipsSel.value,+frameSel.value);renderer.render(scene,camera)};
   clipsSel.onchange=preview;frameSel.onchange=preview;preview();
   state.ready=true;state.clips=gltf.animations.map(x=>({name:x.name,duration:x.duration}));
