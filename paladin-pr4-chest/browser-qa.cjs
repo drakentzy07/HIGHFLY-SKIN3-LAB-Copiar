@@ -83,8 +83,9 @@ function delta(a,b){
      // First establish that both independent rigs render IDENTICAL poses with
      // zero deformation, not just at the original rest. This identifies a rig
      // test-sync problem vs genuine shape amplification.
-     window.__HF_PR4_SET_STRENGTH__(0);
-     for(const clip of clips){
+     for(const strength of [0,1]){
+      window.__HF_PR4_SET_STRENGTH__(strength);
+      for(const clip of clips){
       let peak=0;
       for(const fraction of [.1,.5,.9]){
        A.mixer.stopAllAction();B.mixer.stopAllAction();
@@ -103,12 +104,14 @@ function delta(a,b){
          max=Math.max(max,difference);peak=Math.max(peak,difference);checked++;
         }
        }
-       if(peak>0.0001)throw Error('PR4_SOURCE_VS_CLONE_ANIMATED_BASELINE_NOT_IDENTICAL '+JSON.stringify({clip:clip.name,peak,source:state.pr4}));
-       // To test actual sculpted geometry, a separate pass follows.
-       peak=0;
+       if(strength===0 && peak>0.0001)
+         throw Error('PR4_SOURCE_VS_CLONE_ANIMATED_BASELINE_NOT_IDENTICAL '+JSON.stringify({clip:clip.name,peak,source:state.pr4}));
+       if(strength===1 && peak>.12)
+         throw Error('PR4_SCULPT_INFLATES_ON_ANIMATION '+JSON.stringify({clip:clip.name,peak,source:state.pr4}));
       }
-      list.push({name:clip.name,maximumChestDifferenceInWorldUnits:peak});
-      if(peak>=max)highestClip=clip.name;
+      if(strength===1)list.push({name:clip.name,maximumChestDifferenceInWorldUnits:peak});
+      if(strength===1&&peak>=max)highestClip=clip.name;
+     }
      }
      window.__HF_PR4_SET_STRENGTH__(1);
      A.mixer.stopAllAction();B.mixer.stopAllAction();
@@ -116,7 +119,7 @@ function delta(a,b){
      return {clipsTested:list.length,sampledPoses:clips.length*3,verticesChecked:checked,
        maximumAnimatedWorldChestChange:max,clipWithLargestDifference:highestClip,clips:list};
    });
-   if(motion.clipsTested!==22||motion.sampledPoses!==66||motion.verticesChecked<5000)
+   if(motion.clipsTested!==22||motion.sampledPoses!==66||motion.verticesChecked<10000)
      throw Error('PR4_ALL_22_SOURCE_MOTIONS_NOT_VALIDATED '+JSON.stringify(motion));
    if(errors.length)throw Error('PR4_PAGE_ERRORS '+errors.join(';'));
    report.push({mobile,baseline,changed,motion,source:state.pr4,
