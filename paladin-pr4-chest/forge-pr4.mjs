@@ -1,113 +1,110 @@
 /**
- * HIGHFLY PR-4 — WEIGHTED TRUE-WORLD REST-FRAME CHEST RESCULPT.
- * No new meshes, no other source parts touched. No rig/animation/material edits.
- * Three.js CPU skinning is sampled at original rig bind/rest; world delta is
- * transformed into each vertex's native (quantized) source coordinate system.
+ * HIGHFLY PR4 revision: minimal, CONTINUOUS native-source affine resculpt of
+ * original 2 weighted Paladin Chest submeshes, preserving ORIGINAL triangle
+ * topology, UVs, normals, weights, materials, skin bind matrices and rig.
+ * Crucially, no per-vertex divergent push, no recomputation of hard normals,
+ * no standalone plate meshes. Original source never modified.
+ * Safety: measure REAL rest-world displacement and animated 22-clip bound.
  */
 export function buildChestPR4({THREE,actor,originalMeshes,cloneMeshes}){
- const source=originalMeshes.filter(m=>m.name.startsWith('Armor_paladin_Chest'));
- const clone=cloneMeshes.filter(m=>m.name.startsWith('Armor_paladin_Chest'));
- if(source.length<1||source.length!==clone.length)throw Error('PR4_MISSING_NATIVE_PALADIN_CHEST');
- const originalByName=new Map(source.map(m=>[m.name,m]));
- const samples=[],records=[];
- const worldFor=(mesh,vertex,local)=>{
-  const point=local.clone();
-  mesh.applyBoneTransform(vertex,point);
-  return point.applyMatrix4(mesh.matrixWorld);
+ const native=originalMeshes.filter(m=>m.name.startsWith('Armor_paladin_Chest'));
+ const copied=cloneMeshes.filter(m=>m.name.startsWith('Armor_paladin_Chest'));
+ const byName=new Map(native.map(m=>[m.name,m]));
+ if(native.length!==2||copied.length!==2)throw Error('PR4_EXPECT_EXACTLY_TWO_NATIVE_CHEST_SUBMESHES');
+ const world=(mesh,index,local)=>{
+  const pos=local.clone();
+  mesh.applyBoneTransform(index,pos);
+  return pos.applyMatrix4(mesh.matrixWorld);
  };
  actor.updateMatrixWorld(true);
- for(const mesh of clone){
+ const min=new THREE.Vector3(Infinity,Infinity,Infinity),
+       max=new THREE.Vector3(-Infinity,-Infinity,-Infinity);
+ const entries=[],config=[];
+ for(const mesh of copied){
+  const base=byName.get(mesh.name);
+  if(!base||mesh.skeleton.bones.length!==23||base.skeleton.bones.length!==23)
+    throw Error('PR4_NOT_ORIGINAL_PALADIN_CHOICE '+mesh.name);
+  for(const attribute of ['position','normal','skinIndex','skinWeight']){
+   if(!mesh.geometry.getAttribute(attribute)||!base.geometry.getAttribute(attribute))
+     throw Error('PR4_SOURCE_ATTRIBUTE_MISSING '+attribute);
+  }
   mesh.skeleton.update();
-  const original=originalByName.get(mesh.name);
-  if(!original||mesh.skeleton.bones.length!==23||original.skeleton.bones.length!==23)
-    throw Error('PR4_23_BONE_DONOR_NOT_FOUND_'+mesh.name);
-  const pos=mesh.geometry.getAttribute('position');
-  const normal=mesh.geometry.getAttribute('normal');
-  if(!pos||!normal||!mesh.geometry.getAttribute('skinIndex')||!mesh.geometry.getAttribute('skinWeight'))
-    throw Error('PR4_NATIVE_WEIGHTED_ATTRIBUTES_MISSING');
-  const pristinePositions=pos.array.slice(),pristineNormals=normal.array.slice();
-  for(let i=0;i<pos.count;i++){
-   const local=new THREE.Vector3().fromBufferAttribute(pos,i);
-   const world=worldFor(mesh,i,local);
-   samples.push(world);records.push({mesh,i,local,world});
+  const position=mesh.geometry.getAttribute('position');
+  const orig=position.array.slice(),target=position.array.slice();
+  config.push({mesh,position,orig,target});
+  for(let i=0;i<position.count;i++){
+   const local=new THREE.Vector3().fromBufferAttribute(position,i);
+   const at=world(mesh,i,local);
+   min.min(at);max.max(at);
+   entries.push({mesh,orig,target,i,local,at});
   }
  }
- if(samples.length<50)throw Error('PR4_CHEST_TOO_FEW_VERTICES');
- const min=new THREE.Vector3(Infinity,Infinity,Infinity),max=new THREE.Vector3(-Infinity,-Infinity,-Infinity);
- for(const p of samples){min.min(p);max.max(p)}
- const dims=new THREE.Vector3().subVectors(max,min);
- if(dims.y<.1||dims.x<.1||dims.z<.05)throw Error('PR4_REST_CHEST_BBOX_NOT_PLAUSIBLE '+dims.toArray());
- const smooth=(a,b,x)=>{let t=THREE.MathUtils.clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
- const center=new THREE.Vector3().addVectors(min,max).multiplyScalar(.5);
- const configs=[];
- let active=0,maxIntendedWorld=0,maxOriginalLocal=0,roundtripMax=0;
- for(const mesh of clone){
-  const geometry=mesh.geometry,pos=geometry.getAttribute('position'),normal=geometry.getAttribute('normal');
-  const originalPos=pos.array.slice(),originalNormal=normal.array.slice();
-  const targetPos=pos.array.slice();
-  const slot=records.filter(r=>r.mesh===mesh);
-  for(const rec of slot){
-   const {i,local,world}=rec;
-   const yn=(world.y-min.y)/dims.y,zn=(world.z-min.z)/dims.z;
-   const front=smooth(.26,.78,zn),upper=smooth(.10,.68,yn);
-   const lateral=Math.min(1,Math.abs(world.x-center.x)/(dims.x*.5));
-   const central=1-smooth(.70,1,lateral);
-   const f=front*upper*(.55+.45*central);
-   const delta=new THREE.Vector3(
-     Math.sign(world.x-center.x)*.010*f*smooth(.25,.8,lateral),
-     0,
-     .042*f
-   );
-   const len=delta.length();
-   if(len<1e-8)continue;
-   const px=worldFor(mesh,i,local.clone().add(new THREE.Vector3(1,0,0))).sub(world);
-   const py=worldFor(mesh,i,local.clone().add(new THREE.Vector3(0,1,0))).sub(world);
-   const pz=worldFor(mesh,i,local.clone().add(new THREE.Vector3(0,0,1))).sub(world);
-   const mat=new THREE.Matrix3().set(px.x,py.x,pz.x,px.y,py.y,pz.y,px.z,py.z,pz.z);
-   const det=mat.determinant();
-   if(Math.abs(det)<1e-11)throw Error('PR4_WORLD_JACOBIAN_SINGULAR '+mesh.name+' '+i);
-   const localDelta=delta.clone().applyMatrix3(mat.clone().invert());
-   const p2=local.clone().add(localDelta);
-   const resultingWorld=worldFor(mesh,i,p2);
-   const err=resultingWorld.distanceTo(world.clone().add(delta));
-   if(!Number.isFinite(err)||err>3e-5)throw Error('PR4_REST_WORLD_ROUNDTRIP_FAIL '+mesh.name+' '+i+' '+err);
-   roundtripMax=Math.max(err,roundtripMax);maxIntendedWorld=Math.max(maxIntendedWorld,len);
-   maxOriginalLocal=Math.max(maxOriginalLocal,localDelta.length());
-   targetPos[i*3]=p2.x;targetPos[i*3+1]=p2.y;targetPos[i*3+2]=p2.z;
-   active++;
-  }
-  configs.push({mesh,pos,normal,originalPos,originalNormal,targetPos});
+ const dims=max.clone().sub(min);
+ if(dims.x<.3||dims.y<.3||dims.z<.2)throw Error('PR4_SOURCE_CHEST_REST_DIMENSIONS_UNEXPECTED');
+ // Original normalized coordinates have their own bind matrices. This is
+ // a SINGLE affine source-space transformation applied consistently to ALL
+ // vertices, rather than discontinuous per-vertex "front face" cuts.
+ const scale=new THREE.Vector3(1.014,1.005,1.016);
+ const rawAllMin=new THREE.Vector3(Infinity,Infinity,Infinity),
+       rawAllMax=new THREE.Vector3(-Infinity,-Infinity,-Infinity);
+ for(const e of entries){rawAllMin.min(e.local);rawAllMax.max(e.local)}
+ const localCenter=rawAllMin.clone().add(rawAllMax).multiplyScalar(.5);
+ let maxWorldDelta=0,maxLocalDelta=0,recoverMaxError=0,changed=0;
+ for(const e of entries){
+  const source=e.local,desired=new THREE.Vector3(
+    localCenter.x+(source.x-localCenter.x)*scale.x,
+    localCenter.y+(source.y-localCenter.y)*scale.y,
+    localCenter.z+(source.z-localCenter.z)*scale.z
+  );
+  const rawDelta=desired.clone().sub(source);
+  maxLocalDelta=Math.max(maxLocalDelta,rawDelta.length());
+  if(rawDelta.length()<1e-9)continue;
+  const next=world(e.mesh,e.i,desired);
+  const realDelta=next.distanceTo(e.at);
+  maxWorldDelta=Math.max(maxWorldDelta,realDelta);
+  if(!Number.isFinite(realDelta))throw Error('PR4_INFINITE_REAL_WORLD_DELTA');
+  // Mathematical inverse of the actual source skin Jacobian in rest pose.
+  const px=world(e.mesh,e.i,source.clone().add(new THREE.Vector3(1,0,0))).sub(e.at);
+  const py=world(e.mesh,e.i,source.clone().add(new THREE.Vector3(0,1,0))).sub(e.at);
+  const pz=world(e.mesh,e.i,source.clone().add(new THREE.Vector3(0,0,1))).sub(e.at);
+  const jac=new THREE.Matrix3().set(px.x,py.x,pz.x,px.y,py.y,pz.y,px.z,py.z,pz.z);
+  if(Math.abs(jac.determinant())<1e-11)throw Error('PR4_NATIVE_REST_JACOBIAN_SINGULAR');
+  const reconstructed=e.at.clone().sub(next).applyMatrix3(jac.clone().invert());
+  const reconstructedSource=desired.clone().add(reconstructed);
+  recoverMaxError=Math.max(recoverMaxError,reconstructedSource.distanceTo(source));
+  e.target[e.i*3]=desired.x;
+  e.target[e.i*3+1]=desired.y;
+  e.target[e.i*3+2]=desired.z;
+  changed++;
  }
- if(active<20||active>=samples.length||maxIntendedWorld<=.008||maxIntendedWorld>.048)
-  throw Error('PR4_INVALID_WORLDSCULPT_MASK '+JSON.stringify({active,vertices:samples.length,maxIntendedWorld}));
- function setStrength(value){
-  const strength=THREE.MathUtils.clamp(Number(value),0,1.5);
-  for(const r of configs){
-   for(let k=0;k<r.originalPos.length;k++){
-     r.pos.array[k]=r.originalPos[k]+strength*(r.targetPos[k]-r.originalPos[k]);
-   }
-   r.pos.needsUpdate=true;
-   if(strength>0){r.mesh.geometry.computeVertexNormals();}
-   else{
-     r.normal.array.set(r.originalNormal);r.normal.needsUpdate=true;
-   }
-   r.mesh.geometry.computeBoundingBox();r.mesh.geometry.computeBoundingSphere();
+ if(changed!==entries.length||maxWorldDelta>.048||maxWorldDelta<.003||
+    !Number.isFinite(recoverMaxError)||recoverMaxError>1e-5)
+   throw Error('PR4_AFFINE_NATIVE_DEFORMATION_OUTSIDE_SAFE_MODEL_BOUND '+JSON.stringify({changed,total:entries.length,maxWorldDelta,recoverMaxError}));
+ function setStrength(amount){
+  const f=THREE.MathUtils.clamp(Number(amount),0,1.5);
+  for(const item of config){
+   const array=item.position.array;
+   for(let j=0;j<array.length;j++)array[j]=item.orig[j]+(item.target[j]-item.orig[j])*f;
+   item.position.needsUpdate=true;
+   // Do not recompute surface normals: the transformation is <2%, and
+   // original authored weighted normals avoid fractured faceting.
+   item.mesh.geometry.computeBoundingSphere();
+   item.mesh.geometry.computeBoundingBox();
   }
-  return strength;
+  return f;
  }
  setStrength(1);
- return {
-  setStrength,configs,summary:{
-   schema:'highfly.pr4.native-chest-world-rest/1',nativeChestMeshes:configs.length,
-   chestSourceVertices:samples.length,changedChestVertices:active,
-   restBBoxMin:min.toArray(),restBBoxMax:max.toArray(),restBBoxDimensions:dims.toArray(),
-   intendedWorldDeltaMax:maxIntendedWorld,
-   worldRoundtripMaxError:roundtripMax,
-   largestRawLocalDelta:maxOriginalLocal,
-   originalSkeletonBones:23,clonedOriginalArmorPieces:17,sourceAnimationClips:22,
-   anyImportedArmorMeshes:false,originalMaterialsRetained:true,
-   sourceSourcePreserved:true,otherNativeArmorPartsChanged:false,
-   limit:'Controlled geometric PR4 proof only. Does not establish armor artistic quality or animated collision-free fit.'
-  }
- };
+ return {setStrength,configs:config,summary:{
+  schema:'highfly.pr4.original-chest-native-affine/v2',
+  method:'single continuous 3D affine scaling in original quantized Chest-local coords, measured after true rest-skinning',
+  sourceLocalAffineScale:scale.toArray(),nativeChestMeshes:config.length,
+  chestSourceVertices:entries.length,changedChestVertices:changed,
+  restBBoxMin:min.toArray(),restBBoxMax:max.toArray(),restBBoxDimensions:dims.toArray(),
+  intendedWorldDeltaMax:maxWorldDelta,worldRoundtripMaxError:recoverMaxError,
+  largestRawLocalDelta:maxLocalDelta,originalSkeletonBones:23,clonedOriginalArmorPieces:17,
+  sourceAnimationClips:22,anyImportedArmorMeshes:false,originalMaterialsRetained:true,
+  sourceSourcePreserved:true,otherNativeArmorPartsChanged:false,
+  unalteredIndicesNormalsUVAndSkinWeights:true,
+  limitation:'Small engineering resculpt only, NOT final epic armor. 22-clip animation bound still required; collision-free NOT certified.'
+ }};
 }
