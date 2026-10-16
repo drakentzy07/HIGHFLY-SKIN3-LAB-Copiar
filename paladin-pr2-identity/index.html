@@ -193,16 +193,19 @@ $('wire').onchange=e=>{
   if(o.material?.isMaterial){o.material=o.material.clone();o.material.wireframe=e.target.checked;}
  }
 };
-A.orbit.addEventListener('change',()=>{
- if(!B.actor)return;
- B.orbit.target.copy(A.orbit.target);B.camera.position.copy(A.camera.position);
- B.orbit.update();
-});
-B.orbit.addEventListener('change',()=>{
- if(!A.actor)return;
- A.orbit.target.copy(B.orbit.target);A.camera.position.copy(B.camera.position);
- A.orbit.update();
-});
+let syncingCameras=false;
+function synchronizeCamera(from,to){
+ if(syncingCameras||!from.actor||!to.actor)return;
+ syncingCameras=true;
+ try{
+  to.orbit.target.copy(from.orbit.target);
+  to.camera.position.copy(from.camera.position);
+  to.camera.quaternion.copy(from.camera.quaternion);
+  to.orbit.update();
+ }finally{syncingCameras=false;}
+}
+A.orbit.addEventListener('change',()=>synchronizeCamera(A,B));
+B.orbit.addEventListener('change',()=>synchronizeCamera(B,A));
 const clock=new THREE.Clock();
 function paint(){
  requestAnimationFrame(paint);
