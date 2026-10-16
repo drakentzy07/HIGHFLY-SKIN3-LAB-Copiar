@@ -90,6 +90,7 @@ function delta(a,b){
        B.mixer.clipAction(cloneClip).reset().play();
        A.mixer.setTime(clip.duration*fraction);B.mixer.setTime(clip.duration*fraction);
        restA.updateMatrixWorld(true);restB.updateMatrixWorld(true);
+       for(const a of orig){a.skeleton.update();const b=edit.find(m=>m.name===a.name);b.skeleton.update();}
        for(const a of orig){
         const b=edit.find(m=>m.name===a.name);
         for(let i=0;i<a.geometry.getAttribute('position').count;i++){
