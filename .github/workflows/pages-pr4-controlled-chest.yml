@@ -1,0 +1,99 @@
+name: HIGHFLY PR4 Native Paladin Controlled Chest Geometry
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'paladin-pr4-chest/**'
+      - '.github/workflows/pages-pr4-controlled-chest.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore verified old studio site
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38845532928
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Preserve all prior pages byte-for-byte and add only PR4
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s previous/artifact.tar
+          mkdir -p independent-site
+          tar -xf previous/artifact.tar -C independent-site
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86 skin87 skin88 skin89-wip skin91-wip tailor-r08 tailor-r09 obsidian-r05 obsidian-r051 obsidian-r052 paladin-pr2-identity paladin-pr3-motion; do
+            test -s "independent-site/$d/index.html"
+          done
+          test ! -e independent-site/paladin-pr4-chest
+          test -s independent-site/v20/vendor/three/build/three.module.js
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum >/tmp/hf-pr4-existing-shas.txt
+          mkdir -p independent-site/paladin-pr4-chest
+          cp paladin-pr4-chest/index.html paladin-pr4-chest/forge-pr4.mjs independent-site/paladin-pr4-chest/
+          cat > independent-site/paladin-pr4-chest/NOTICE.txt <<'TXT'
+          HIGHFLY PR4 geometric chest proof, NOT finished armor.
+          Only native Paladin Chest donor positions altered in cloned model.
+          All 23 bones, 22 clips and original character preserved.
+          0 percent should render EXACTLY identical, 100 percent visible bounded deformation.
+          No collision-free, full fantasy armor or art quality certification.
+          TXT
+          sha256sum -c /tmp/hf-pr4-existing-shas.txt >/dev/null
+          node --check paladin-pr4-chest/forge-pr4.mjs
+          node --check paladin-pr4-chest/browser-qa.cjs
+          echo HIGHFLY_PR4_OLD_PAGES_BITWISE_PRESERVED=1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser QA
+        shell: bash
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0 pngjs@7
+          npx playwright install --with-deps chromium
+      - name: Strict native geometry pixel QA + 22 clips PC and Android
+        shell: bash
+        timeout-minutes: 9
+        env:
+          HF_PR4_URL: http://127.0.0.1:4954/paladin-pr4-chest/
+          HF_PR4_REPORT: ${{ runner.temp }}/highfly-pr4-proof
+        run: |
+          set -euo pipefail
+          mkdir -p "$HF_PR4_REPORT"
+          python3 -m http.server 4954 --bind 127.0.0.1 --directory independent-site >/tmp/hf-pr4-http.log 2>&1 &
+          sleep 2
+          curl -fsSL "$HF_PR4_URL" | grep -F 'PR-4 — CORAZA NATIVA'
+          node paladin-pr4-chest/browser-qa.cjs
+          echo HIGHFLY_PR4_GENUINE_WEIGHTED_NATIVE_CHEST_22_CLIPS_GREEN=1
+      - name: Keep evidence for visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-PR4-WEIGHTED-CHEST-GEOMETRY-AND-ANIMATION-PROOF
+          path: ${{ runner.temp }}/highfly-pr4-proof
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}paladin-pr4-chest/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
