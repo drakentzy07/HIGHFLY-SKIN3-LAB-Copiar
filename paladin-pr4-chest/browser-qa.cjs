@@ -60,64 +60,74 @@ function delta(a,b){
    await page.locator('#side').click();
    await page.waitForTimeout(150);
    await page.screenshot({path:path.join(out,mobile?'android-profile-pr4.png':'pc-profile-pr4.png'),fullPage:true});
+   // Compare ORIGINAL vs CLONED at zero relief, then the SAME CLONE
+   // at 0% vs 100% relief IN THE VERY SAME FRAME / skeleton transforms.
+   // This prevents false 0.52 jumps from stale independent animation states.
    const motion=await page.evaluate(()=>{
-     const root=window.__HF_PR4_SCENE__,state=window.__HIGHFLY_PALADIN_PR4__,A=root.A,B=root.B;
-     const clips=A.gltf.animations;
-     const orig=A.armors.filter(o=>o.name.startsWith('Armor_paladin_Chest'));
-     const edit=B.armors.filter(o=>o.name.startsWith('Armor_paladin_Chest'));
-     const list=[];
-     const names=new Set(orig.map(x=>x.name));
-     if(names.size!==orig.length||edit.length!==orig.length)throw Error('CHEST_MATCHING_FAIL');
-     const space=(mesh,i)=>{
-       const v=new THREE.Vector3().fromBufferAttribute(mesh.geometry.getAttribute('position'),i);
-       mesh.applyBoneTransform(i,v);return v.applyMatrix4(mesh.matrixWorld);
+     const {A,B}=window.__HF_PR4_SCENE__;
+     const originals=A.armors.filter(o=>o.name.startsWith('Armor_paladin_Chest'));
+     const clones=B.armors.filter(o=>o.name.startsWith('Armor_paladin_Chest'));
+     const Vector3=originals[0].position.constructor;
+     if(originals.length!==clones.length||!clones.length)throw Error('PR4_SOURCE_CHEST_PAIR_MISSING');
+     const orig=new Map(originals.map(m=>[m.name,m]));
+     const view=(mesh,i)=>{
+       const point=new Vector3().fromBufferAttribute(mesh.geometry.getAttribute('position'),i);
+       mesh.applyBoneTransform(i,point);
+       return point.applyMatrix4(mesh.matrixWorld);
      };
-     // Three is module-scoped, not global. Use objects' constructors for vectors.
-     const vectorCtor=orig[0].position.constructor;
-     const point=(mesh,i)=>{
-       const v=new vectorCtor().fromBufferAttribute(mesh.geometry.getAttribute('position'),i);
-       mesh.applyBoneTransform(i,v);return v.applyMatrix4(mesh.matrixWorld);
-     };
-     const restA=A.gltf.scene,restB=B.gltf.scene;
-     let max=0,highestClip='',checked=0;
-     // First establish that both independent rigs render IDENTICAL poses with
-     // zero deformation, not just at the original rest. This identifies a rig
-     // test-sync problem vs genuine shape amplification.
-     for(const strength of [0,1]){
-      window.__HF_PR4_SET_STRENGTH__(strength);
-      for(const clip of clips){
-      let peak=0;
-      for(const fraction of [.1,.5,.9]){
-       A.mixer.stopAllAction();B.mixer.stopAllAction();
-       A.mixer.clipAction(clip).reset().play();
-       const cloneClip=B.gltf.animations.find(c=>c.name===clip.name);
-       if(!cloneClip)throw Error('CLONE_CLIP_MISSING '+clip.name);
-       B.mixer.clipAction(cloneClip).reset().play();
-       A.mixer.setTime(clip.duration*fraction);B.mixer.setTime(clip.duration*fraction);
-       restA.updateMatrixWorld(true);restB.updateMatrixWorld(true);
-       for(const a of orig){a.skeleton.update();const b=edit.find(m=>m.name===a.name);b.skeleton.update();}
-       for(const a of orig){
-        const b=edit.find(m=>m.name===a.name);
-        for(let i=0;i<a.geometry.getAttribute('position').count;i++){
-         const v=point(a,i),w=point(b,i),difference=v.distanceTo(w);
-         if(!Number.isFinite(difference))throw Error('PR4_NONFINITE_SKIN_DEFORMATION');
-         max=Math.max(max,difference);peak=Math.max(peak,difference);checked++;
-        }
+     const list=[],sourceClips=A.gltf.animations;
+     let n=0,max=0,identityMax=0,peakClip='',dataPoint=null;
+     for(const clip of sourceClips){
+       let clipMax=0;
+       for(const fraction of [.1,.5,.9]){
+         // Use BOTH actors' original clips with fixed absolute times.
+         A.mixer.stopAllAction();B.mixer.stopAllAction();
+         A.mixer.clipAction(clip).reset().play();
+         const twin=B.gltf.animations.find(c=>c.name===clip.name);
+         if(!twin)throw Error('PR4_NATIVE_CLIP_NOT_FOUND '+clip.name);
+         B.mixer.clipAction(twin).reset().play();
+         const when=fraction*clip.duration;
+         A.mixer.setTime(when);B.mixer.setTime(when);
+         A.gltf.scene.updateMatrixWorld(true);B.gltf.scene.updateMatrixWorld(true);
+         for(const c of clones){c.skeleton.update();orig.get(c.name).skeleton.update();}
+         window.__HF_PR4_SET_STRENGTH__(0);
+         // Cache exact ORIGINAL geometry position ON THE SAME CLONE rig.
+         const base=new Map();
+         for(const c of clones){
+           const a=orig.get(c.name);
+           const vecs=[];
+           for(let i=0;i<c.geometry.getAttribute('position').count;i++){
+             const b0=view(c,i),a0=view(a,i),mismatch=b0.distanceTo(a0);
+             identityMax=Math.max(identityMax,mismatch);
+             if(mismatch>1e-4)throw Error('PR4_ZERO_STRENGTH_ANIMATED_BASELINE_DIVERGES '+JSON.stringify({clip:clip.name,fraction,mesh:c.name,vertex:i,mismatch}));
+             vecs.push(b0.toArray());
+           }
+           base.set(c.name,vecs);
+         }
+         window.__HF_PR4_SET_STRENGTH__(1);
+         // No skeleton changes or animation updates between the two reads.
+         for(const c of clones){
+           const b0=base.get(c.name);
+           for(let i=0;i<b0.length;i++){
+             const next=view(c,i),prev=new Vector3(...b0[i]);
+             const moved=next.distanceTo(prev);
+             if(!Number.isFinite(moved))throw Error('PR4_NONFINITE_SAME_RIG_MOVEMENT');
+             if(moved>clipMax){clipMax=moved;peakClip=clip.name;
+               dataPoint={clip:clip.name,fraction,mesh:c.name,index:i,
+                 before:prev.toArray(),after:next.toArray()};}
+             max=Math.max(max,moved);n++;
+           }
+         }
+         if(clipMax>.12)throw Error('PR4_ACTUAL_SAME_RIG_ANIMATED_GEOMETRY_EXCEEDS_SAFE_BOUND '+JSON.stringify({clip:clip.name,fraction,clipMax,point:dataPoint}));
        }
-       if(strength===0 && peak>0.0001)
-         throw Error('PR4_SOURCE_VS_CLONE_ANIMATED_BASELINE_NOT_IDENTICAL '+JSON.stringify({clip:clip.name,peak,source:state.pr4}));
-       if(strength===1 && peak>.12)
-         throw Error('PR4_SCULPT_INFLATES_ON_ANIMATION '+JSON.stringify({clip:clip.name,peak,source:state.pr4}));
-      }
-      if(strength===1)list.push({name:clip.name,maximumChestDifferenceInWorldUnits:peak});
-      if(strength===1&&peak>=max)highestClip=clip.name;
-     }
+       list.push({name:clip.name,maximumActualWorldDelta:clipMax});
      }
      window.__HF_PR4_SET_STRENGTH__(1);
      A.mixer.stopAllAction();B.mixer.stopAllAction();
-     // restore bind pose when test completes to avoid clipping accidental UI state
-     return {clipsTested:list.length,sampledPoses:clips.length*3,verticesChecked:checked,
-       maximumAnimatedWorldChestChange:max,clipWithLargestDifference:highestClip,clips:list};
+     return {clipsTested:list.length,sampledPoses:list.length*3,verticesChecked:n,
+       baselineOriginalCloneMaxDifference:identityMax,
+       maximumAnimatedWorldChestChange:max,clipWithLargestDifference:peakClip,
+       maximumDifferenceVertex:dataPoint,clips:list};
    });
    if(motion.clipsTested!==22||motion.sampledPoses!==66||motion.verticesChecked<10000)
      throw Error('PR4_ALL_22_SOURCE_MOTIONS_NOT_VALIDATED '+JSON.stringify(motion));
