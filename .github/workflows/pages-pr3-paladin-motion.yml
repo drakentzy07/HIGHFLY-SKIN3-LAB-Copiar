@@ -1,0 +1,119 @@
+name: HIGHFLY PR3 Paladin original 22 clips animated armor fit audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'paladin-pr3-motion/**'
+      - '.github/workflows/pages-pr3-paladin-motion.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 29
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38843664795
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Restore previous Skin Lab byte-for-byte and add read-only PR3
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s previous/artifact.tar
+          mkdir -p independent-site
+          tar -xf previous/artifact.tar -C independent-site
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86 skin87 skin88 skin89-wip skin91-wip tailor-r08 tailor-r09 obsidian-r05 obsidian-r051 obsidian-r052 paladin-pr2-identity; do
+            test -s "independent-site/$d/index.html"
+          done
+          test -s independent-site/v20/vendor/three/build/three.module.js
+          test -s independent-site/v20/vendor/meshopt_decoder.module.js
+          test ! -e independent-site/paladin-pr3-motion
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum >/tmp/highfly-pr3-existing-sha.txt
+          mkdir -p independent-site/paladin-pr3-motion
+          cp paladin-pr3-motion/index.html independent-site/paladin-pr3-motion/
+          cat > independent-site/paladin-pr3-motion/NOTICE.txt <<'TXT'
+          HIGHFLY PR3 scientific proximity audit of original Paladin armor in 22 native animations.
+          No modifications to original game, published labs, rig, mesh, or armature.
+          Only measured distance candidates in 67 sampled poses, NOT guaranteed collision-free
+          nor proof of penetration, and not an approved user skin.
+          Source ClaudeCraft original fixed upstream commit 9b57e49.
+          TXT
+          sha256sum -c /tmp/highfly-pr3-existing-sha.txt >/dev/null
+          node --check paladin-pr3-motion/browser-extract.cjs
+          python -m py_compile paladin-pr3-motion/analyze-pr3.py
+          echo HIGHFLY_PR3_ALL_PREVIOUS_SKINLAB_PAGES_BITWISE_PRESERVED=1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare Chromium and exact triangle-distance analysis
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+          python -m pip install -q 'numpy<3' trimesh rtree scipy
+      - name: ALL 22 source clips x 3 temporal poses + original rest CPU skinned extraction
+        shell: bash
+        timeout-minutes: 10
+        env:
+          HF_PR3_URL: http://127.0.0.1:4945/paladin-pr3-motion/
+          HF_PR3_EXPORT: ${{ runner.temp }}/highfly-pr3-frames
+          HF_PR3_SCREENSHOT: ${{ runner.temp }}/highfly-pr3-motion-preflight.png
+        run: |
+          set -euo pipefail
+          python -m http.server 4945 --bind 127.0.0.1 --directory independent-site >/tmp/highfly-pr3-http.log 2>&1 &
+          sleep 2
+          curl -fsSL "$HF_PR3_URL" | grep -F 'PR-3'
+          node paladin-pr3-motion/browser-extract.cjs
+      - name: Nearest animated triangle distances (never claim signed collisions)
+        timeout-minutes: 11
+        shell: bash
+        env:
+          HF_PR3_EXPORT: ${{ runner.temp }}/highfly-pr3-frames
+          HF_PR3_REPORT: ${{ runner.temp }}/highfly-pr3-report
+        run: |
+          set -euo pipefail
+          python paladin-pr3-motion/analyze-pr3.py "$HF_PR3_EXPORT" "$HF_PR3_REPORT"
+          test -s "$HF_PR3_REPORT/HIGHFLY_PR3_CLIP_SURFACE_AUDIT.json"
+          test -s "$HF_PR3_REPORT/HIGHFLY_PR3_SUMMARY_ES.md"
+          test -s "$HF_PR3_REPORT/HIGHFLY_PR3_WORST_DISTANCE_PER_ANIMATION.csv"
+          cp "$HF_PR3_REPORT/HIGHFLY_PR3_SUMMARY_ES.md" independent-site/paladin-pr3-motion/RESULTADOS.md
+          cp "$HF_PR3_REPORT/HIGHFLY_PR3_WORST_DISTANCE_PER_ANIMATION.csv" independent-site/paladin-pr3-motion/RESULTADOS.csv
+          cp "$HF_PR3_REPORT/HIGHFLY_PR3_CLIP_SURFACE_AUDIT.json" independent-site/paladin-pr3-motion/RESULTADOS.json
+          echo HIGHFLY_PR3_22_REAL_MOTION_CLIPS_AND_ARMOR_TRIANGLE_PROXIMITY_AUDIT_GREEN=1
+      - name: Archive animated audit and original scene preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-PR3-22-ANIMATIONS-REAL-DISTANCE-AUDIT
+          path: |
+            ${{ runner.temp }}/highfly-pr3-report
+            ${{ runner.temp }}/highfly-pr3-motion-preflight.png
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}paladin-pr3-motion/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
