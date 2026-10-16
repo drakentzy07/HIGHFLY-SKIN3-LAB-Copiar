@@ -39,7 +39,9 @@ export function buildChestPR4({THREE,actor,originalMeshes,cloneMeshes}){
    orig[3*i+1]=target[3*i+1]=position.getY(i);
    orig[3*i+2]=target[3*i+2]=position.getZ(i);
   }
-  config.push({mesh,position,orig,target,interleaved:!!position.isInterleavedBufferAttribute});
+  const packed=position.isInterleavedBufferAttribute?position.data.array:position.array;
+  const rawSnapshot=packed.slice(); // exact packed data, including signed normalized endpoints
+  config.push({mesh,position,orig,target,rawSnapshot,interleaved:!!position.isInterleavedBufferAttribute});
   for(let i=0;i<position.count;i++){
    const local=new THREE.Vector3().fromBufferAttribute(position,i);
    const at=world(mesh,i,local);
@@ -52,7 +54,11 @@ export function buildChestPR4({THREE,actor,originalMeshes,cloneMeshes}){
  // Original normalized coordinates have their own bind matrices. This is
  // a SINGLE affine source-space transformation applied consistently to ALL
  // vertices, rather than discontinuous per-vertex "front face" cuts.
- const scale=new THREE.Vector3(1.014,1.005,1.016);
+ // Original glTF POSITION is a SIGNED NORMALIZED accessor. Naive scale 1.014
+ // wraps -1.005 to +0.995 in the underlying signed integer buffer!
+ // Envelope vanishes at ±1, exactly preserving native quantization bounds.
+ const scale=new THREE.Vector3(.07,.03,.07);
+ const expand=(v,c,k)=>v+(v-c)*k*Math.max(0,1-v*v);
  const rawAllMin=new THREE.Vector3(Infinity,Infinity,Infinity),
        rawAllMax=new THREE.Vector3(-Infinity,-Infinity,-Infinity);
  for(const e of entries){rawAllMin.min(e.local);rawAllMax.max(e.local)}
@@ -60,10 +66,12 @@ export function buildChestPR4({THREE,actor,originalMeshes,cloneMeshes}){
  let maxWorldDelta=0,maxLocalDelta=0,recoverMaxError=0,changed=0;
  for(const e of entries){
   const source=e.local,desired=new THREE.Vector3(
-    localCenter.x+(source.x-localCenter.x)*scale.x,
-    localCenter.y+(source.y-localCenter.y)*scale.y,
-    localCenter.z+(source.z-localCenter.z)*scale.z
+    expand(source.x,localCenter.x,scale.x),
+    expand(source.y,localCenter.y,scale.y),
+    expand(source.z,localCenter.z,scale.z)
   );
+  if([desired.x,desired.y,desired.z].some(v=>Math.abs(v)>1.000001))
+    throw Error('PR4_NORMALIZED_COORDINATE_OUT_OF_RANGE '+e.mesh.name+' '+desired.toArray());
   const rawDelta=desired.clone().sub(source);
   maxLocalDelta=Math.max(maxLocalDelta,rawDelta.length());
   if(rawDelta.length()<1e-9)continue;
@@ -85,12 +93,23 @@ export function buildChestPR4({THREE,actor,originalMeshes,cloneMeshes}){
   e.target[e.i*3+2]=desired.z;
   changed++;
  }
- if(changed!==entries.length||maxWorldDelta>.048||maxWorldDelta<.003||
+ if(changed<entries.length*.85||maxWorldDelta>.048||maxWorldDelta<.001||
     !Number.isFinite(recoverMaxError)||recoverMaxError>1e-5)
    throw Error('PR4_AFFINE_NATIVE_DEFORMATION_OUTSIDE_SAFE_MODEL_BOUND '+JSON.stringify({changed,total:entries.length,maxWorldDelta,recoverMaxError}));
  function setStrength(amount){
   const f=THREE.MathUtils.clamp(Number(amount),0,1.5);
   for(const item of config){
+   if(f===0){
+    // Restore raw ORIGINAL bit pattern exactly, including -32768 and
+    // any packed neighboring attributes, not a lossy normalize↔denormalize.
+    const packed=item.interleaved?item.position.data.array:item.position.array;
+    packed.set(item.rawSnapshot);
+    if(item.interleaved)item.position.data.needsUpdate=true;
+    else item.position.needsUpdate=true;
+    item.mesh.geometry.computeBoundingSphere();
+    item.mesh.geometry.computeBoundingBox();
+    continue;
+   }
    for(let i=0;i<item.position.count;i++){
     const k=3*i;
     item.position.setXYZ(i,
@@ -120,8 +139,8 @@ export function buildChestPR4({THREE,actor,originalMeshes,cloneMeshes}){
  setStrength(1);
  return {setStrength,configs:config,summary:{
   schema:'highfly.pr4.original-chest-native-affine/v3-stride-safe',
-  method:'single continuous 3D affine scaling in original quantized Chest-local coords, measured after true rest-skinning',
-  sourceLocalAffineScale:scale.toArray(),nativeChestMeshes:config.length,
+  method:'small continuous smooth-envelope native-source Chest deformation bounded within normalized [-1,+1], with stride-safe getXYZ/setXYZ and exact packed rollback',
+  sourceLocalEnvelopeCoefficients:scale.toArray(),nativeChestMeshes:config.length,
   originalPositionBufferInterleaved:config.map(x=>({mesh:x.mesh.name,interleaved:x.interleaved,stride:x.position.data?.stride??null})),
   chestSourceVertices:entries.length,changedChestVertices:changed,
   restBBoxMin:min.toArray(),restBBoxMax:max.toArray(),restBBoxDimensions:dims.toArray(),
