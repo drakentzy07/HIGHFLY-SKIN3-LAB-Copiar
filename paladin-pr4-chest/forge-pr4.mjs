@@ -30,8 +30,16 @@ export function buildChestPR4({THREE,actor,originalMeshes,cloneMeshes}){
   }
   mesh.skeleton.update();
   const position=mesh.geometry.getAttribute('position');
-  const orig=position.array.slice(),target=position.array.slice();
-  config.push({mesh,position,orig,target});
+  // DO NOT index position.array as a tightly packed xyz triplet.
+  // ClaudeCraft may use interleaved/normalized vertex buffers with a stride.
+  // getX/getY/getZ and setXYZ respect native accessor layout and conversion.
+  const orig=new Float64Array(position.count*3),target=new Float64Array(position.count*3);
+  for(let i=0;i<position.count;i++){
+   orig[3*i]=target[3*i]=position.getX(i);
+   orig[3*i+1]=target[3*i+1]=position.getY(i);
+   orig[3*i+2]=target[3*i+2]=position.getZ(i);
+  }
+  config.push({mesh,position,orig,target,interleaved:!!position.isInterleavedBufferAttribute});
   for(let i=0;i<position.count;i++){
    const local=new THREE.Vector3().fromBufferAttribute(position,i);
    const at=world(mesh,i,local);
@@ -83,9 +91,25 @@ export function buildChestPR4({THREE,actor,originalMeshes,cloneMeshes}){
  function setStrength(amount){
   const f=THREE.MathUtils.clamp(Number(amount),0,1.5);
   for(const item of config){
-   const array=item.position.array;
-   for(let j=0;j<array.length;j++)array[j]=item.orig[j]+(item.target[j]-item.orig[j])*f;
-   item.position.needsUpdate=true;
+   for(let i=0;i<item.position.count;i++){
+    const k=3*i;
+    item.position.setXYZ(i,
+      item.orig[k]+(item.target[k]-item.orig[k])*f,
+      item.orig[k+1]+(item.target[k+1]-item.orig[k+1])*f,
+      item.orig[k+2]+(item.target[k+2]-item.orig[k+2])*f
+    );
+   }
+   if(item.position.isInterleavedBufferAttribute){
+     item.position.data.needsUpdate=true;
+   }else item.position.needsUpdate=true;
+   // Identity guard on source attribute API, independent of underlying stride.
+   for(let i=0;i<item.position.count;i++){
+    const k=3*i;
+    const wanted=[0,1,2].map(j=>item.orig[k+j]+(item.target[k+j]-item.orig[k+j])*f);
+    const actual=[item.position.getX(i),item.position.getY(i),item.position.getZ(i)];
+    if(wanted.some((v,j)=>Math.abs(v-actual[j])>3e-4))
+       throw Error('PR4_ATTRIBUTE_LAYOUT_WROTE_WRONG_VERTEX '+item.mesh.name+' '+i+' actual '+actual+' wanted '+wanted);
+   }
    // Do not recompute surface normals: the transformation is <2%, and
    // original authored weighted normals avoid fractured faceting.
    item.mesh.geometry.computeBoundingSphere();
@@ -95,9 +119,10 @@ export function buildChestPR4({THREE,actor,originalMeshes,cloneMeshes}){
  }
  setStrength(1);
  return {setStrength,configs:config,summary:{
-  schema:'highfly.pr4.original-chest-native-affine/v2',
+  schema:'highfly.pr4.original-chest-native-affine/v3-stride-safe',
   method:'single continuous 3D affine scaling in original quantized Chest-local coords, measured after true rest-skinning',
   sourceLocalAffineScale:scale.toArray(),nativeChestMeshes:config.length,
+  originalPositionBufferInterleaved:config.map(x=>({mesh:x.mesh.name,interleaved:x.interleaved,stride:x.position.data?.stride??null})),
   chestSourceVertices:entries.length,changedChestVertices:changed,
   restBBoxMin:min.toArray(),restBBoxMax:max.toArray(),restBBoxDimensions:dims.toArray(),
   intendedWorldDeltaMax:maxWorldDelta,worldRoundtripMaxError:recoverMaxError,
