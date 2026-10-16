@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HIGHFLY · PR4 Coraza Paladin deformación controlada</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#0c121f;color:#f0f3ff;font:14px system-ui,'Segoe UI',sans-serif}
+header{padding:13px clamp(10px,3vw,27px);background:#171e32;border-bottom:1px solid #465575}
+h1{font-size:clamp(17px,2.7vw,25px);margin:0}header p{margin:6px 0 0;color:#b5c8e5}
+main{max-width:1500px;margin:auto;padding:10px}
+.toolbar{padding:9px;border:1px solid #53627b;background:#202b40;border-radius:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button,select{padding:8px 12px;border-radius:8px;color:#fff;background:#2e4162;border:1px solid #667d9b;font:inherit;cursor:pointer}
+button:focus-visible,select:focus-visible{outline:3px solid #ab99ff}
+label{display:flex;gap:5px;align-items:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.panel{border:1px solid #57657c;background:#111c30;border-radius:10px;overflow:hidden}
+.panel h2{font-size:15px;margin:0;padding:10px;background:#1b2a43}
+.viewport{height:min(62vh,600px);min-height:300px;touch-action:none;background:#172238}
+.viewport canvas{display:block;width:100%;height:100%}
+.details{padding:12px;background:#1b2a43;border:1px solid #526a8b;border-radius:10px;white-space:pre-wrap}
+.note{margin-top:10px;background:#151e31;border-radius:9px;padding:10px;color:#b7cbe9}
+@media(max-width:720px){main{padding:5px}.grid{gap:4px}.panel h2{font-size:11px;padding:7px}.viewport{height:48vh;min-height:185px}.toolbar{padding:6px;gap:5px}button,select{padding:6px}}
+</style>
+<script type="importmap">{"imports":{
+"three":"../v20/vendor/three/build/three.module.js",
+"three/addons/":"../v20/vendor/three/examples/jsm/",
+"meshoptimizer":"../v20/vendor/meshopt_decoder.module.js"
+}}</script>
+</head><body>
+<header><h1>HIGHFLY · PR-4 — CORAZA NATIVA EN ESCALA REAL</h1>
+<p>Original ClaudeCraft <b>vs.</b> misma armadura con SOLO la coraza ligeramente remodelada usando coordenadas reales · 23 huesos · 22 animaciones · prototipo NO definitivo</p></header>
+<main>
+<div class="toolbar">
+<label>Animación <select id="clip"><option value="">Reposo original</option></select></label>
+<label><input id="animate" type="checkbox"> Reproducir</label>
+<button id="front">Frente</button><button id="side">Perfil</button><button id="back">Espalda</button>
+<button id="head">Casco</button><button id="full">Cuerpo completo</button>
+<label><input type="checkbox" id="wire"> Aristas</label>
+</div>
+<div class="toolbar" style="margin-top:10px;">
+ <label>Relieve geométrico PR-4 <input type="range" id="strength" min="0" max="150" value="100" step="10" style="accent-color:#b6a1ef;width:170px"/> <output id="strengthValue">100 %</output></label>
+ <button id="identity" aria-label="Volver a copia idéntica">0 % — copia idéntica</button>
+ <button id="controlled" aria-label="Reactivar relieve">100 % — coraza nueva</button>
+ <span style="color:#afc8ee">La pieza ORIGINAL siempre queda intacta a la izquierda.</span>
+</div>
+<div class="grid">
+<section class="panel"><h2>A · PALADIN ORIGINAL SIN ALTERACIONES</h2><div id="left" class="viewport"></div></section>
+<section class="panel"><h2>B · CORAZA PR-4 SOBRE CLON PALADIN</h2><div id="right" class="viewport"></div></section>
+</div>
+<div class="details" id="status" role="status">Cargando dos fuentes originales idénticas y verificando vértice a vértice…</div>
+<pre class="details" id="proof">Pendiente…</pre>
+<div class="note">VALIDACIÓN ESTRICTA. PR-4 primero clona 1:1 las 17 submallas Paladin. SOLO en la copia B se remodelan los vértices de la coraza; las demás piezas, materiales, pesos, matrices y 23 huesos siguen idénticos. A 0 % la copia debe quedar PIXEL A PIXEL idéntica al original. A 100 % el volumen frontal de la coraza cambia de forma limitada (máximo 0,048 unidades del personaje en reposo). Esto NO aprueba todavía una armadura definitiva ni garantiza ausencia de colisiones.</div>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {MeshoptDecoder} from 'meshoptimizer';
+import {buildChestPR4} from './forge-pr4.mjs';
+const SRC='https://raw.githubusercontent.com/levy-street/world-of-claudecraft/9b57e49c9676d75962700f828cc00a50a9a988b5/public/models/chars/modular/warrior_modular.glb';
+const $=id=>document.getElementById(id);
+const state={ready:false,error:null,sourceNames:[],boneCount:0,clipCount:0,cloneGeometryCount:0,
+   cloneAttributeArrayMismatch:0,cloneNodeTransformMismatch:0,visibility:{left:0,right:0},
+   playing:false,selectedClip:'',screenshotsChecked:false};
+window.__HIGHFLY_PALADIN_PR2__=state;
+window.__HIGHFLY_PALADIN_PR4__=state;
+let pr4=null;
+function setStrength(value){
+ if(!pr4)return;
+ const v=pr4.setStrength(value);
+ $('strength').value=String(Math.round(v*100));
+ $('strengthValue').textContent=Math.round(v*100)+' %';
+ state.chestStrength=v;
+}
+$('strength').oninput=e=>setStrength(+e.target.value/100);
+$('identity').onclick=()=>setStrength(0);
+$('controlled').onclick=()=>setStrength(1);
+function panel(id){
+ const host=$(id),scene=new THREE.Scene();scene.background=new THREE.Color(0x172338);
+ const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
+ renderer.setPixelRatio(1);renderer.outputColorSpace=THREE.SRGBColorSpace;
+ renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
+ host.append(renderer.domElement);
+ scene.add(new THREE.HemisphereLight(0xdcecff,0x494b62,2.3));
+ for(const [pos,pow,color] of [[[4,5,5],3,0xffffff],[[-3,3,-5],1.5,0x9898ff]]){
+  const l=new THREE.DirectionalLight(color,pow);l.position.set(...pos);scene.add(l);
+ }
+ const camera=new THREE.PerspectiveCamera(35,1,.01,100);
+ const orbit=new OrbitControls(camera,renderer.domElement);orbit.enableDamping=false;
+ orbit.minDistance=.25;orbit.maxDistance=15;
+ const p={host,scene,renderer,camera,orbit,actor:null,mixer:null,gltf:null,armors:[],head:null,foot:null};
+ return p;
+}
+const A=panel('left'),B=panel('right'),panels=[A,B];
+const body=/^M_(Head|Torso|Loin|ArmL|ArmR|HandL|HandR|LegL|LegR|FootL|FootR|Eye_almond|Brow_soft|Ear_round|Mouth_neutral)(?:_|$)/;
+const active=o=>{for(let p=o;p;p=p.parent)if(!p.visible)return false;return true;};
+function showPaladin(p){
+ p.actor.traverse(o=>{
+  if(!o.isMesh)return;
+  o.visible=o.name.startsWith('Armor_paladin_')||body.test(o.name);
+  o.frustumCulled=false;
+ });
+ p.armors=[];
+ p.actor.traverse(o=>{
+  if(o.isSkinnedMesh&&o.name.startsWith('Armor_paladin_')){
+   p.armors.push(o);if(!active(o))throw Error('PR2_PALADIN_PARENT_HIDDEN '+o.name);
+  }
+ });
+ if(p.armors.length!==17)throw Error('PR2_EXPECT_17_VISIBLE_NATIVE_PALADIN_SUBMESHES '+p.armors.length);
+ const heads=[];p.actor.traverse(o=>{if(o.isBone&&o.name==='head')heads.push(o)});
+ if(heads.length!==1)throw Error('PR2_EXPECT_1_ORIGINAL_HEAD_BONE '+heads.length);
+}
+function matricesEqual(a,b){
+ if(!a||!b||a.length!==b.length)return false;
+ return a.every((x,i)=>Object.is(x,b[i])||Math.abs(x-b[i])<1e-12);
+}
+function allAttrEqual(a,b){
+ const an=Object.keys(a.attributes).sort(),bn=Object.keys(b.attributes).sort();
+ if(an.join('|')!==bn.join('|'))return false;
+ for(const k of an){
+  const x=a.attributes[k],y=b.attributes[k];
+  if(x.itemSize!==y.itemSize||x.count!==y.count||x.array.constructor!==y.array.constructor||
+     x.array.length!==y.array.length)return false;
+  for(let i=0;i<x.array.length;i++)if(x.array[i]!==y.array[i])return false;
+ }
+ if(!!a.index!==!!b.index)return false;
+ if(a.index&&b.index){
+  if(a.index.array.length!==b.index.array.length)return false;
+  for(let i=0;i<a.index.array.length;i++)if(a.index.array[i]!==b.index.array[i])return false;
+ }
+ return true;
+}
+function originalEqualsClone(){
+ const aa=A.armors.map(o=>o.name).sort(),bb=B.armors.map(o=>o.name).sort();
+ if(aa.join('|')!==bb.join('|'))throw Error('PR2_NAMES_DO_NOT_MATCH');
+ let count=0,checks=0;
+ for(const name of aa){
+  const a=A.armors.find(o=>o.name===name),b=B.armors.find(o=>o.name===name);
+  const cloned=b.geometry.clone();
+  if(!allAttrEqual(a.geometry,cloned))throw Error('PR2_VERTEX_INDEX_WEIGHT_NORMAL_MISMATCH '+name);
+  if(!matricesEqual(a.matrix.elements,b.matrix.elements)||
+     !matricesEqual(a.bindMatrix.elements,b.bindMatrix.elements)||
+     !matricesEqual(a.bindMatrixInverse.elements,b.bindMatrixInverse.elements))
+   throw Error('PR2_TRANSFORM_OR_BIND_MATRIX_MISMATCH '+name);
+  if(a.skeleton.bones.map(j=>j.name).join('|')!==b.skeleton.bones.map(j=>j.name).join('|')||
+     a.skeleton.bones.length!==23)throw Error('PR2_NOT_ORIGINAL_23_BONES '+name);
+  b.geometry=cloned;count++;checks+=Object.keys(cloned.attributes).length;
+ }
+ state.cloneGeometryCount=count;state.cloneAttributeArrayMismatch=0;
+ state.cloneNodeTransformMismatch=0;
+ state.sourceNames=aa;state.boneCount=23;state.clipCount=22;
+ state.arrayChannelsChecked=checks;
+}
+let direction='front',close=false;
+function frame(){
+ if(!A.actor)return;
+ const box=new THREE.Box3();
+ A.actor.updateMatrixWorld(true);
+ A.actor.traverse(o=>{if(o.isMesh&&o.visible)box.expandByObject(o,true)});
+ if(box.isEmpty())throw Error('PR2_SOURCE_NO_VISIBLE_GEOMETRY');
+ let sz=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
+ if(close){center.y=box.max.y-sz.y*.16;sz.multiplyScalar(.46);}
+ const distance=Math.max(sz.y*.5,sz.x*.9,sz.z*.9)/
+  Math.tan(THREE.MathUtils.degToRad(35/2))*1.18;
+ const dir=direction==='side'?new THREE.Vector3(1,.06,0):
+   direction==='back'?new THREE.Vector3(0,.06,-1):new THREE.Vector3(0,.06,1);
+ dir.normalize();
+ for(const p of panels){
+  p.orbit.target.copy(center);p.camera.position.copy(center).addScaledVector(dir,distance);
+  p.camera.updateProjectionMatrix();p.orbit.update();
+ }
+}
+function setClip(name){
+ state.selectedClip=name;
+ for(const p of panels){
+  p.mixer.stopAllAction();
+  if(name){
+   const c=p.gltf.animations.find(x=>x.name===name);
+   if(!c)throw Error('PR2_CLIP_NOT_IN_BOTH '+name);
+   p.mixer.clipAction(c).reset().play();
+   p.mixer.setTime(0);
+  }
+ }
+}
+function resize(){
+ for(const p of panels){
+  const w=Math.max(90,p.host.clientWidth),h=Math.max(90,p.host.clientHeight);
+  if(p.renderer.domElement.width!==w||p.renderer.domElement.height!==h){
+   p.renderer.setSize(w,h,false);
+   p.camera.aspect=w/h;p.camera.updateProjectionMatrix();
+  }
+ }
+}
+const loader=new GLTFLoader();loader.setMeshoptDecoder(MeshoptDecoder);
+const transcoder=new KTX2Loader().setTranscoderPath('../v20/vendor/three/examples/jsm/libs/basis/').detectSupport(A.renderer);
+loader.setKTX2Loader(transcoder);
+async function load(p){
+ p.gltf=await loader.loadAsync(SRC);
+ if(p.gltf.animations.length!==22)throw Error('PR2_LOST_ORIGINAL_ANIMATIONS');
+ p.actor=p.gltf.scene;p.scene.add(p.actor);
+ p.mixer=new THREE.AnimationMixer(p.actor);
+ showPaladin(p);
+}
+$('clip').onchange=e=>{setClip(e.target.value)};
+$('animate').onchange=e=>{state.playing=e.target.checked;
+ if(!e.target.checked)for(const p of panels)p.mixer?.setTime(0);
+};
+for(const x of ['front','side','back'])$(x).onclick=()=>{direction=x;frame()};
+$('head').onclick=()=>{close=true;frame()};
+$('full').onclick=()=>{close=false;frame()};
+$('wire').onchange=e=>{
+ for(const p of panels)for(const o of p.armors){
+  if(o.material?.isMaterial){o.material=o.material.clone();o.material.wireframe=e.target.checked;}
+ }
+};
+let syncingCameras=false;
+function synchronizeCamera(from,to){
+ if(syncingCameras||!from.actor||!to.actor)return;
+ syncingCameras=true;
+ try{
+  to.orbit.target.copy(from.orbit.target);
+  to.camera.position.copy(from.camera.position);
+  to.camera.quaternion.copy(from.camera.quaternion);
+  to.orbit.update();
+ }finally{syncingCameras=false;}
+}
+A.orbit.addEventListener('change',()=>synchronizeCamera(A,B));
+B.orbit.addEventListener('change',()=>synchronizeCamera(B,A));
+const clock=new THREE.Clock();
+function paint(){
+ requestAnimationFrame(paint);
+ const dt=Math.min(clock.getDelta(),.06);
+ resize();
+ if(state.playing&&A.mixer&&B.mixer){A.mixer.update(dt);B.mixer.update(dt);}
+ for(const p of panels)p.renderer.render(p.scene,p.camera);
+}
+paint();
+(async()=>{try{
+ await MeshoptDecoder.ready;await load(A);await load(B);
+ originalEqualsClone();
+ pr4=buildChestPR4({THREE,actor:B.actor,originalMeshes:A.armors,cloneMeshes:B.armors});
+ state.pr4=pr4.summary;state.chestStrength=1;
+ window.__HF_PR4_SET_STRENGTH__=setStrength;
+ window.__HF_PR4_SCENE__={A,B};
+ const selected='';
+ $('clip').replaceChildren(...[selected,...A.gltf.animations.map(c=>c.name)].map(n=>{
+  const o=document.createElement('option');o.value=n;o.textContent=n||'Reposo original';return o;
+ }));
+ $('clip').value='';
+ frame();
+ state.visibility={left:A.armors.filter(active).length,right:B.armors.filter(active).length};
+ if(state.visibility.left!==17||state.visibility.right!==17)throw Error('PR2_17_PALADIN_MESH_VISIBILITY_NOT_REAL');
+ state.ready=true;
+ $('status').textContent='✅ PR4: 17 submallas Paladin originales; solo coraza clonada B con geometría real controlada. 23 huesos, 22 clips. PRUEBA ARTÍSTICA Y COLISIONES PENDIENTES.';
+ $('proof').textContent=JSON.stringify(state,null,2);
+}catch(e){state.error=String(e.stack||e);$('status').textContent='❌ '+state.error;console.error(e);}})();
+</script></body></html>
