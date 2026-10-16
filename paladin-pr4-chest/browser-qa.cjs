@@ -33,7 +33,7 @@ function delta(a,b){
    const state=await page.evaluate(()=>window.__HIGHFLY_PALADIN_PR4__);
    if(!state.ready||state.error||state.boneCount!==23||state.clipCount!==22||
     state.cloneGeometryCount!==17||state.pr4?.nativeChestMeshes<1||
-    state.pr4.changedChestVertices<20||state.pr4.changedChestVertices>=state.pr4.chestSourceVertices||
+    state.pr4.changedChestVertices<state.pr4.chestSourceVertices*.85||state.pr4.changedChestVertices>state.pr4.chestSourceVertices||
     state.pr4.intendedWorldDeltaMax<.008||state.pr4.intendedWorldDeltaMax>.048||
     state.pr4.worldRoundtripMaxError>3e-5||
     state.pr4.anyImportedArmorMeshes!==false||state.pr4.otherNativeArmorPartsChanged!==false)
