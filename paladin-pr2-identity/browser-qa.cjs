@@ -26,8 +26,15 @@ const path=require('path');
       throw Error('PR2_SOURCE_INTEGRITY_RED '+JSON.stringify(s));
    await page.locator('#front').click();
    await page.waitForTimeout(350);
-   const a=PNG.sync.read(await page.locator('#left canvas').screenshot());
-   const b=PNG.sync.read(await page.locator('#right canvas').screenshot());
+   // Capture BOTH WebGL canvases during a single synchronous JS turn.
+   // Separate Playwright locator screenshots scroll the mobile viewport
+   // between left and right and can cause temporary mobile layout/raster variance.
+   const pair=await page.evaluate(()=>{
+     const left=document.querySelector('#left canvas'),right=document.querySelector('#right canvas');
+     return [left.toDataURL('image/png'),right.toDataURL('image/png')];
+   });
+   const a=PNG.sync.read(Buffer.from(pair[0].split(',')[1],'base64'));
+   const b=PNG.sync.read(Buffer.from(pair[1].split(',')[1],'base64'));
    if(a.width!==b.width||a.height!==b.height)throw Error('PR2_SCREENSHOT_SIZES_DIFFER');
    let touched=0,total=a.width*a.height,max=0,sum=0,mean=0;
    for(let i=0;i<a.data.length;i+=4){
