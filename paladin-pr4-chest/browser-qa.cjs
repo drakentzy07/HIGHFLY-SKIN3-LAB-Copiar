@@ -71,7 +71,7 @@ function delta(a,b){
      if(originals.length!==clones.length||!clones.length)throw Error('PR4_SOURCE_CHEST_PAIR_MISSING');
      const orig=new Map(originals.map(m=>[m.name,m]));
      const view=(mesh,i)=>{
-       const point=new Vector3().fromBufferAttribute(mesh.geometry.getAttribute('position'),i);
+       const point=new (orig.get(c.name).position.constructor)().fromBufferAttribute(mesh.geometry.getAttribute('position'),i);
        mesh.applyBoneTransform(i,point);
        return point.applyMatrix4(mesh.matrixWorld);
      };
@@ -114,7 +114,11 @@ function delta(a,b){
              if(!Number.isFinite(moved))throw Error('PR4_NONFINITE_SAME_RIG_MOVEMENT');
              if(moved>clipMax){clipMax=moved;peakClip=clip.name;
                dataPoint={clip:clip.name,fraction,mesh:c.name,index:i,
-                 before:prev.toArray(),after:next.toArray()};}
+                 before:prev.toArray(),after:next.toArray(),
+                 originalRaw:[...new (orig.get(c.name).position.constructor)().fromBufferAttribute(orig.get(c.name).geometry.getAttribute('position'),i).toArray()],
+                 editedRaw:[...new (orig.get(c.name).position.constructor)().fromBufferAttribute(c.geometry.getAttribute('position'),i).toArray()],
+                 boneWeights:[...Array(4)].map((_,k)=>c.geometry.getAttribute('skinWeight').getComponent(i,k)),
+                 boneIndices:[...Array(4)].map((_,k)=>c.geometry.getAttribute('skinIndex').getComponent(i,k))};}
              max=Math.max(max,moved);n++;
            }
          }
