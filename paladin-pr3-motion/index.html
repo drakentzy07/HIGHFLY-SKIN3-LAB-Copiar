@@ -8,6 +8,14 @@ code{color:#d0b1ff}</style>
 <header><h1>⚔ HIGHFLY · PR-3 — Auditoría dinámica del Paladin original</h1>
 <p>Rig_Medium · 23 huesos · 22 animaciones originales · geometría sin modificar</p></header>
 <div class="wrap"><div id="status" class="status">Cargando fuente ClaudeCraft original…</div>
+<div class="status" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+<label>Animación <select id="clipSelect" style="padding:8px;background:#263b59;color:#fff;border:1px solid #637b9b"></select></label>
+<label>Postura <select id="frameSelect" style="padding:8px;background:#263b59;color:#fff;border:1px solid #637b9b">
+<option value="0.1">10 %</option><option value="0.5" selected>50 %</option><option value="0.9">90 %</option></select></label>
+<button id="front" style="padding:8px;background:#304565;color:#fff">Frente</button>
+<button id="side" style="padding:8px;background:#304565;color:#fff">Perfil</button>
+<button id="back" style="padding:8px;background:#304565;color:#fff">Espalda</button>
+</div>
 <canvas id="render" width="760" height="560"></canvas>
 <p>Esta es una herramienta técnica, no una armadura nueva. Para cada animación se extraen superficies animadas reales; las distancias se analizan en GitHub Actions. <strong>Proximidad no equivale a penetración certificada.</strong></p>
 </div>
@@ -25,6 +33,15 @@ const scene=new THREE.Scene();scene.background=new THREE.Color(0x172841);
 scene.add(new THREE.HemisphereLight(0xffffff,0x42415a,2.5));
 const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(4,5,5);scene.add(light);
 const camera=new THREE.PerspectiveCamera(36,760/560,.01,100),vector=new THREE.Vector3();
+let cameraCenter=new THREE.Vector3(),cameraDistance=3,side='front';
+function updateCamera(){
+ const facing=side==='side'?new THREE.Vector3(1,.08,0):side==='back'?new THREE.Vector3(0,.08,-1):new THREE.Vector3(0,.08,1);
+ camera.position.copy(cameraCenter).addScaledVector(facing.normalize(),cameraDistance);
+ camera.lookAt(cameraCenter);renderer.render(scene,camera);
+}
+document.querySelector('#front').onclick=()=>{side='front';updateCamera()};
+document.querySelector('#side').onclick=()=>{side='side';updateCamera()};
+document.querySelector('#back').onclick=()=>{side='back';updateCamera()};
 const body=['Head','Torso','ArmL','ArmR','HandL','HandR','LegL','LegR','FootL','FootR','Loin'];
 const armor=['Head','Chest','Back','ArmL','ArmR','HandL','HandR','LegL','LegR','FootL','FootR'];
 const all=new Map(),bodyGroups=new Map(),armorGroups=new Map();
@@ -141,9 +158,14 @@ window.__HF_PR3_SAMPLE__=(clipName,fraction)=>{
   });
   const box=new THREE.Box3().setFromObject(gltf.scene);
   const center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
-  camera.position.set(center.x,center.y+size.y*.15,center.z+Math.max(size.y*1.45,1));
-  camera.lookAt(center);
-  frozenRest();renderer.render(scene,camera);
+  cameraCenter=center;cameraDistance=Math.max(size.y*1.45,1);
+  frozenRest();updateCamera();
+  const clipsSel=document.querySelector('#clipSelect'),frameSel=document.querySelector('#frameSelect');
+  clipsSel.replaceChildren(...gltf.animations.map(c=>{
+    const opt=document.createElement('option');opt.value=c.name;opt.textContent=c.name;return opt;
+  }));
+  const preview=()=>{clipPose(clipsSel.value,+frameSel.value);renderer.render(scene,camera)};
+  clipsSel.onchange=preview;frameSel.onchange=preview;preview();
   state.ready=true;state.clips=gltf.animations.map(x=>({name:x.name,duration:x.duration}));
   state.boneCount=23;state.meshCount=armCount;
   document.querySelector('#status').textContent='✅ Original cargado · 23 huesos · 17 submallas Paladin · 22 animaciones. PR-3 está listo para muestreo.';
