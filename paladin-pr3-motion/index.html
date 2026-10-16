@@ -1,0 +1,152 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HIGHFLY PR3 — 22 animaciones, encaje Paladin original</title>
+<style>body{margin:0;background:#0d1525;color:#e5edff;font:15px system-ui}header{padding:16px 20px;background:#182440}
+h1{margin:0;font-size:23px}p{line-height:1.55}.wrap{max-width:1200px;margin:auto;padding:14px}.status{padding:12px;border:1px solid #4c6484;border-radius:8px;background:#192b46;margin:10px 0}canvas{max-width:100%;border:1px solid #3e5376;background:#14233c;border-radius:8px}
+code{color:#d0b1ff}</style>
+<script type="importmap">{"imports":{"three":"../v20/vendor/three/build/three.module.js","three/addons/":"../v20/vendor/three/examples/jsm/","meshoptimizer":"../v20/vendor/meshopt_decoder.module.js"}}</script>
+</head><body>
+<header><h1>⚔ HIGHFLY · PR-3 — Auditoría dinámica del Paladin original</h1>
+<p>Rig_Medium · 23 huesos · 22 animaciones originales · geometría sin modificar</p></header>
+<div class="wrap"><div id="status" class="status">Cargando fuente ClaudeCraft original…</div>
+<canvas id="render" width="760" height="560"></canvas>
+<p>Esta es una herramienta técnica, no una armadura nueva. Para cada animación se extraen superficies animadas reales; las distancias se analizan en GitHub Actions. <strong>Proximidad no equivale a penetración certificada.</strong></p>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
+import {MeshoptDecoder} from 'meshoptimizer';
+const URL='https://raw.githubusercontent.com/levy-street/world-of-claudecraft/9b57e49c9676d75962700f828cc00a50a9a988b5/public/models/chars/modular/warrior_modular.glb';
+const state={ready:false,error:null,clips:[],boneCount:0,meshCount:0};
+window.__HIGHFLY_PR3__=state;
+const canvas=document.querySelector('#render'),renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x172841);
+scene.add(new THREE.HemisphereLight(0xffffff,0x42415a,2.5));
+const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(4,5,5);scene.add(light);
+const camera=new THREE.PerspectiveCamera(36,760/560,.01,100),vector=new THREE.Vector3();
+const body=['Head','Torso','ArmL','ArmR','HandL','HandR','LegL','LegR','FootL','FootR','Loin'];
+const armor=['Head','Chest','Back','ArmL','ArmR','HandL','HandR','LegL','LegR','FootL','FootR'];
+const all=new Map(),bodyGroups=new Map(),armorGroups=new Map();
+let gltf,mixer,rest=[];
+const getSlot=(name,prefix,slots)=>slots.find(s=>name===prefix+s||name.startsWith(prefix+s+'_'))||null;
+function addGroup(groups,key,mesh){
+ if(!groups.has(key))groups.set(key,[]);
+ groups.get(key).push(mesh);
+}
+function sourceMeshVertices(mesh){
+ const attr=mesh.geometry.getAttribute('position'),a=new Array(attr.count*3);
+ mesh.updateMatrixWorld(true);
+ mesh.skeleton.update();
+ for(let i=0;i<attr.count;i++){
+  vector.fromBufferAttribute(attr,i);
+  mesh.applyBoneTransform(i,vector);
+  vector.applyMatrix4(mesh.matrixWorld);
+  for(let k=0;k<3;k++){
+   const v=vector.getComponent(k);
+   if(!Number.isFinite(v))throw Error('PR3_NONFINITE_WORLD_VERTEX_'+mesh.name);
+   a[i*3+k]=Math.round(v*1e7)/1e7;
+  }
+ }
+ return a;
+}
+function triangles(mesh,offset){
+ const g=mesh.geometry,pos=g.getAttribute('position'),index=g.getIndex(),faces=[];
+ if(index){
+  if(index.count%3)throw Error('PR3_INVALID_TRIANGLE_COUNT');
+  for(let i=0;i<index.count;i+=3)faces.push(offset+index.getX(i),offset+index.getX(i+1),offset+index.getX(i+2));
+ }else{
+  if(pos.count%3)throw Error('PR3_INVALID_NONINDEXED_MESH');
+  for(let i=0;i<pos.count;i+=3)faces.push(offset+i,offset+i+1,offset+i+2);
+ }
+ return faces;
+}
+function appendMeshes(meshes){
+ let offset=0,faces=[],coords=[],names=[];
+ for(const m of meshes){
+  if(!m.isSkinnedMesh||m.skeleton.bones.length!==23)throw Error('PR3_MESH_NOT_ORIGINAL_23_BONES '+m.name);
+  const positions=sourceMeshVertices(m);
+  coords.push(...positions);
+  faces.push(...triangles(m,offset));
+  offset+=positions.length/3;
+  names.push(m.name);
+ }
+ return {positions:coords,faces,names};
+}
+function appendOnlyPositions(meshes){
+ let coords=[];
+ for(const m of meshes)coords.push(...sourceMeshVertices(m));
+ return coords;
+}
+function frozenRest(){
+ mixer.stopAllAction();mixer.setTime(0);
+ for(const r of rest){
+  r.o.position.copy(r.pos);r.o.quaternion.copy(r.quat);r.o.scale.copy(r.scale);
+ }
+ gltf.scene.updateMatrixWorld(true);
+}
+function clipPose(name,fraction){
+ frozenRest();
+ if(name){
+  const clip=gltf.animations.find(x=>x.name===name);
+  if(!clip)throw Error('PR3_UNKNOWN_CLIP '+name);
+  let action=mixer.clipAction(clip);
+  action.reset().play();mixer.setTime(Math.max(0,Math.min(.95,fraction))*clip.duration);
+ }
+ gltf.scene.updateMatrixWorld(true);
+}
+function snapshot(){
+ const surfaces={};
+ for(const [key,meshes] of bodyGroups)surfaces['M_'+key]=appendOnlyPositions(meshes);
+ for(const [key,meshes] of armorGroups)surfaces['Armor_paladin_'+key]=appendOnlyPositions(meshes);
+ return surfaces;
+}
+window.__HF_PR3_TOPOLOGY__=()=>{
+ if(!state.ready)throw Error('PR3_NOT_READY');
+ frozenRest();const surfaces={};
+ for(const [key,meshes] of bodyGroups)surfaces['M_'+key]=appendMeshes(meshes);
+ for(const [key,meshes] of armorGroups)surfaces['Armor_paladin_'+key]=appendMeshes(meshes);
+ return surfaces;
+};
+window.__HF_PR3_SAMPLE__=(clipName,fraction)=>{
+ if(!state.ready)throw Error('PR3_NOT_READY');
+ clipPose(clipName,fraction);
+ return {clip:clipName||'__SOURCE_REST__',fraction,positions:snapshot()};
+};
+(async()=>{
+ try{
+  await MeshoptDecoder.ready;
+  const loader=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  const ktx=new KTX2Loader().setTranscoderPath('../v20/vendor/three/examples/jsm/libs/basis/').detectSupport(renderer);
+  loader.setKTX2Loader(ktx);
+  gltf=await loader.loadAsync(URL);
+  if(gltf.animations.length!==22)throw Error('PR3_EXPECTS_22_GENUINE_CLIPS');
+  scene.add(gltf.scene);mixer=new THREE.AnimationMixer(gltf.scene);
+  const bones=[];
+  gltf.scene.traverse(o=>{
+   if(o.isBone){bones.push(o);rest.push({o,pos:o.position.clone(),quat:o.quaternion.clone(),scale:o.scale.clone()})}
+   if(!o.isSkinnedMesh)return;
+   let slot=getSlot(o.name,'Armor_paladin_',armor);
+   if(slot){addGroup(armorGroups,slot,o);return;}
+   slot=getSlot(o.name,'M_',body);
+   if(slot)addGroup(bodyGroups,slot,o);
+  });
+  if(bones.length<23||armorGroups.size!==11||bodyGroups.size!==11)
+   throw Error('PR3_ORIGINAL_MESH_SLOTS_INCOMPLETE '+JSON.stringify({
+      bones:bones.length,body:[...bodyGroups.keys()],armor:[...armorGroups.keys()]}));
+  const armCount=[...armorGroups.values()].reduce((a,x)=>a+x.length,0);
+  if(armCount!==17)throw Error('PR3_EXPECTS_17_PALADIN_PRIMITIVES '+armCount);
+  gltf.scene.traverse(o=>{
+   if(o.isMesh){o.visible=o.name.startsWith('Armor_paladin_')||/^M_(Torso|Loin|ArmL|ArmR|HandL|HandR|LegL|LegR|FootL|FootR|Head)/.test(o.name);o.frustumCulled=false}
+  });
+  const box=new THREE.Box3().setFromObject(gltf.scene);
+  const center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
+  camera.position.set(center.x,center.y+size.y*.15,center.z+Math.max(size.y*1.45,1));
+  camera.lookAt(center);
+  frozenRest();renderer.render(scene,camera);
+  state.ready=true;state.clips=gltf.animations.map(x=>({name:x.name,duration:x.duration}));
+  state.boneCount=23;state.meshCount=armCount;
+  document.querySelector('#status').textContent='✅ Original cargado · 23 huesos · 17 submallas Paladin · 22 animaciones. PR-3 está listo para muestreo.';
+ }catch(e){state.error=String(e.stack||e);document.querySelector('#status').textContent='❌ '+state.error;console.error(e);}
+})();
+</script></body></html>
