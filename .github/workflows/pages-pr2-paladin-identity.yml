@@ -1,0 +1,99 @@
+name: HIGHFLY PR2 Paladin 1-to-1 True Native Identity Preview
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'paladin-pr2-identity/**'
+      - '.github/workflows/pages-pr2-paladin-identity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: highfly-skin3-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore prior isolated Skin Lab release (never replace existing routes)
+        uses: actions/download-artifact@v4
+        with:
+          repository: drakentzy07/HIGHFLY-SKIN3-LAB-Copiar
+          name: github-pages
+          run-id: 38799181605
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Preserve all published routes and install ONLY isolated audit page
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s previous/artifact.tar
+          mkdir -p independent-site
+          tar -xf previous/artifact.tar -C independent-site
+          for d in v20 paladin-lab native-v2 native-v3 native-v4 skin8 skin83 skin84 skin85 skin86 skin87 skin88 skin89-wip skin91-wip tailor-r08 tailor-r09 obsidian-r05 obsidian-r051 obsidian-r052; do
+            test -s "independent-site/$d/index.html"
+          done
+          test -s independent-site/v20/vendor/three/build/three.module.js
+          test -s independent-site/v20/vendor/meshopt_decoder.module.js
+          test ! -e independent-site/paladin-pr2-identity
+          find independent-site -type f -print0 | sort -z | xargs -0 sha256sum >/tmp/highfly-pr2-prev-file-shas.txt
+          mkdir -p independent-site/paladin-pr2-identity
+          cp paladin-pr2-identity/index.html independent-site/paladin-pr2-identity/index.html
+          cat > independent-site/paladin-pr2-identity/NOTICE.txt <<'TXT'
+          HIGHFLY PR-2 native Paladin original vs vertex-exact geometry clone.
+          NOT a new armor. Original ClaudeCraft source GLB fetched byte-identically
+          from upstream commit 9b57e49. Two independent original animation rigs.
+          No change to original game, existing Skin Lab Pages, character sources.
+          Automated pixel render equality in frozen rest pose is the deployment gate.
+          Animated 22-clip collision/clearance and concept art fidelity NOT claimed.
+          TXT
+          sha256sum -c /tmp/highfly-pr2-prev-file-shas.txt >/tmp/highfly-pr2-prev-preservation.txt
+          echo HIGHFLY_PR2_ALL_OLDER_SKINLAB_ROUTES_BYTE_IDENTICAL=1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium test harness and PNG pixel comparator
+        shell: bash
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0 pngjs@7
+          npx playwright install --with-deps chromium
+      - name: Strict PC and mobile original vs clone REAL WEBGL pixel match
+        shell: bash
+        timeout-minutes: 7
+        env:
+          HF_PR2_URL: http://127.0.0.1:4943/paladin-pr2-identity/
+          HF_PR2_SHOTS: ${{ runner.temp }}/highfly-pr2-proof
+        run: |
+          set -euo pipefail
+          mkdir -p "$HF_PR2_SHOTS"
+          python3 -m http.server 4943 --bind 127.0.0.1 --directory independent-site >/tmp/highfly-pr2-http.log 2>&1 &
+          sleep 2
+          curl -fsSL "$HF_PR2_URL" | grep -F 'PALADIN NATIVO 1:1'
+          node paladin-pr2-identity/browser-qa.cjs
+          echo HIGHFLY_PR2_REAL_NATIVE_ORIGINAL_VS_CLONE_VISUAL_PIXEL_GATE_GREEN=1
+      - name: Archive true WebGL render and pixels for human verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-PR2-PALADIN-TRUE-IDENTITY-SCREENSHOTS
+          path: ${{ runner.temp }}/highfly-pr2-proof
+          retention-days: 30
+          if-no-files-found: warn
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: independent-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}paladin-pr2-identity/
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publication
